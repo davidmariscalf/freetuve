@@ -1,49 +1,64 @@
 # FreeTuve
 
-FreeTuve converts a YouTube video into an interactive language listening lesson.
+FreeTuve turns a YouTube video into an interactive language listening lesson. It prefers existing subtitles, falls back to local speech to text when needed, and can save compact audio exercises on the learner's device for offline study.
 
-## What it does
+## FreeTuve 1.0
+
+The complete learning flow is:
 
 1. Paste a YouTube URL.
-2. Choose the language and difficulty.
-3. FreeTuve downloads a browser playable copy of the video with `yt-dlp` and uses FFmpeg when streams need merging.
-4. It first tries manual or automatic YouTube WebVTT subtitles.
-5. If usable subtitles are missing or too sparse, FreeTuve automatically transcribes the video's speech locally with `faster-whisper` and creates its own WebVTT subtitles.
-6. Subtitle cues are cleaned and grouped into useful short phrases.
-7. Each phrase becomes a listening exercise: cloze, multiple choice or dictation depending on difficulty.
-8. The learner must listen at least twice before answering. Extra replays are allowed with a small score penalty.
-9. After answering, the complete subtitle is revealed below the video so the learner can compare what they heard with the actual phrase.
-10. Wrong answers are scheduled again later in the same lesson.
-11. Progress and attempts are stored locally in `data/`.
+2. Choose language, difficulty and lesson length.
+3. FreeTuve validates the source and rejects unsupported live or overlong videos before the main download.
+4. `yt-dlp` obtains a browser playable copy and FFmpeg merges streams when needed.
+5. FreeTuve first tries manual or automatic YouTube WebVTT subtitles.
+6. If captions are missing or too sparse, `faster-whisper` transcribes speech locally and FreeTuve creates its own WebVTT file.
+7. Captions are cleaned and grouped into useful short phrases.
+8. Phrases become cloze, multiple choice or dictation exercises.
+9. The learner listens at least twice before answering. Extra replays carry a small score penalty.
+10. The full phrase is revealed after the answer and mistakes return later in the same session.
+11. A lesson can be saved offline. FreeTuve stores only the exercise audio clips plus exercise data, not the entire video.
+12. The web app is installable as a PWA and saved lessons remain available without a network connection.
+13. Temporary server copies are removed automatically after the configured retention period or immediately when the user chooses to delete them.
 
-The exercise generator and speech-to-text pipeline do not require an AI API or paid service.
+No paid AI API is required.
 
 ## Subtitle strategy
 
-FreeTuve uses this order:
-
 ```text
-YouTube manual/automatic subtitles
-          ↓ missing or unusable
-local faster-whisper transcription
-          ↓
-WebVTT cleanup and phrase segmentation
-          ↓
-interactive exercises
+YouTube manual or automatic subtitles
+                ↓ missing or insufficient
+        local faster-whisper
+                ↓
+       generated WebVTT
+                ↓
+ cleanup and phrase segmentation
+                ↓
+      interactive exercises
 ```
 
-Local transcription defaults to the multilingual `small` Whisper model on CPU using INT8. The model is downloaded on first use and cached under `data/models/` when using the default configuration.
+Local transcription defaults to the multilingual `small` Whisper model on CPU using INT8. The model is downloaded on first use and cached under `data/models/`.
 
-Environment variables:
+## Offline design
+
+Offline mode deliberately does not turn FreeTuve into a full video downloader. When a learner selects **Guardar offline**, the server extracts only the short audio spans used by the lesson. The browser stores those clips in Cache Storage and stores the lesson manifest locally. The installed PWA can then replay and score the saved exercises without contacting the server.
+
+Deleting a server lesson does not remove an already saved offline copy from the learner's device. Offline copies can be removed from the local library independently.
+
+## Production defaults
 
 ```text
+FREETUVE_LESSON_TTL_HOURS=24
+FREETUVE_MAX_VIDEO_SECONDS=3600
+FREETUVE_MAX_MEDIA_MB=750
+FREETUVE_CREATE_LIMIT_PER_HOUR=10
+FREETUVE_OFFLINE_AUDIO_KBPS=64
 FREETUVE_WHISPER_MODEL=small
 FREETUVE_WHISPER_DEVICE=cpu
 FREETUVE_WHISPER_COMPUTE_TYPE=int8
 FREETUVE_MODEL_DIR=/custom/model/cache
 ```
 
-For a CUDA deployment, set the device and an appropriate compute type for the installed environment.
+These values are configurable. The defaults mean temporary lesson files are retained for 24 hours, source videos are limited to 60 minutes and 750 MB, and one client can create at most 10 lessons per hour per server process.
 
 ## Run with Docker
 
@@ -53,7 +68,9 @@ docker compose up --build
 
 Open `http://localhost:8000`.
 
-The first lesson that needs local transcription may take longer because the speech model has to be downloaded once. The `data/` volume also keeps the model cache between container restarts.
+The first lesson that needs local transcription may take longer because the speech model must be downloaded once. The `data/` volume persists the model cache and temporary lesson data between container restarts.
+
+For public deployment, use HTTPS. Service workers and installable PWA behavior require a secure context outside localhost.
 
 ## Run locally
 
@@ -68,41 +85,44 @@ uvicorn app.main:app --reload
 
 Then open `http://127.0.0.1:8000`.
 
-## Tests
+## Tests and CI
 
 ```bash
 pip install -r requirements-dev.txt
 pytest -q
 ```
 
-CI compiles the Python package, checks frontend JavaScript syntax and runs the unit tests. Tests do not download a Whisper model.
-
-## Product scope
-
-The MVP supports YouTube, six language choices in the UI, difficulty levels from easy to expert, up to 40 exercises per lesson, local progress, replay speed controls, adaptive review of mistakes and local speech-to-text fallback.
-
-The main remaining operational limitation is compute: local transcription is substantially heavier than consuming existing subtitles, especially on CPU and for long videos. YouTube availability, geographic restrictions and source-platform changes can also affect ingestion.
+GitHub Actions runs on every push and pull request. It compiles Python, validates both frontend JavaScript files and the PWA manifest, runs unit tests, builds the production Docker image, starts the image and checks `/api/health` from the running container. Unit tests do not download a Whisper model.
 
 ## Architecture
 
 ```text
-frontend/              browser UI and lesson player
-app/main.py            FastAPI routes
-app/youtube.py         YouTube validation and yt-dlp ingestion
-app/transcription.py   faster-whisper local speech-to-text and WebVTT creation
-app/vtt.py             WebVTT cleanup and phrase segmentation
-app/exercises.py       exercise generation and scoring
-app/service.py         processing pipeline and caption fallback selection
-app/storage.py         local persistent lesson storage
-tests/                 unit tests
+frontend/index.html     browser UI
+frontend/app.js         online and offline lesson player
+frontend/sw.js          PWA shell and offline clip delivery
+app/main.py             FastAPI routes, lifecycle and rate limiting
+app/youtube.py          YouTube preflight and yt-dlp ingestion
+app/transcription.py    faster-whisper speech to text and WebVTT creation
+app/vtt.py              caption cleanup and phrase segmentation
+app/exercises.py        exercise generation and scoring
+app/offline.py          compact AAC offline lesson packs
+app/service.py          processing pipeline and caption fallback selection
+app/storage.py          persistence, retention cleanup and deletion
+tests/                  regression tests
 ```
+
+## Privacy and storage
+
+FreeTuve does not require accounts. Server lesson directories use random UUIDs. Internal paths and correct answers are not exposed by the normal lesson endpoint. Correct answers are included only in the explicitly requested offline pack so the device can score exercises without a server connection.
+
+Temporary lesson data is deleted after the configured TTL. The user can also delete a lesson from the server immediately. Locally saved PWA data remains on that device until the learner deletes it or clears site data.
 
 ## Safety and usage
 
-FreeTuve is a learning tool, not a copyright bypass service. Only download or process videos when you have permission or another lawful basis to do so, and follow the terms that apply to the source platform and content.
+FreeTuve is a learning tool, not a copyright bypass service. Only process videos when you have permission or another lawful basis to do so, and follow the terms that apply to the source platform and content.
 
-The server deliberately accepts only HTTPS YouTube hosts rather than arbitrary URLs.
+The server accepts only HTTPS YouTube hosts, rejects live streams, enforces configurable media limits and does not act as a general purpose URL fetcher.
 
 ## Upstream components
 
-The project integrates `yt-dlp`, FFmpeg and `faster-whisper` without copying their full repositories into FreeTuve. Exact upstream references are recorded in `upstream.lock.json`; license notes are in `THIRD_PARTY.md`.
+The project integrates `yt-dlp`, FFmpeg and `faster-whisper` without copying their complete source trees into FreeTuve. Exact upstream references are recorded in `upstream.lock.json`; license notes are in `THIRD_PARTY.md`.
