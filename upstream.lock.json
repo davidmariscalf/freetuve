@@ -1,0 +1,12 @@
+{
+  "yt_dlp": {
+    "repository": "https://github.com/yt-dlp/yt-dlp.git",
+    "commit": "bbc809a1161d3bfca51fa36f59dda35556ee85a0",
+    "checkout_dir": ".vendor/yt-dlp"
+  },
+  "ffmpeg": {
+    "repository": "https://github.com/FFmpeg/FFmpeg.git",
+    "commit": "639ee849526cfe61ceb312776335c245b98bd9d4",
+    "checkout_dir": ".vendor/ffmpeg"
+  }
+}
