@@ -37,8 +37,10 @@ def _mask(text: str, selected: list[int]) -> tuple[str, list[str]]:
     matches = _word_matches(text)
     selected = sorted(set(selected))
     expected = [matches[i].group(0) for i in selected]
-    replacements = [(matches[word_index].start(), matches[word_index].end(), MARKER.format(index=blank_index))
-                    for blank_index, word_index in enumerate(selected)]
+    replacements = [
+        (matches[word_index].start(), matches[word_index].end(), MARKER.format(index=blank_index))
+        for blank_index, word_index in enumerate(selected)
+    ]
     result = text
     for start, end, marker in reversed(replacements):
         result = result[:start] + marker + result[end:]
@@ -88,6 +90,7 @@ def generate_exercises(segments: list[dict], difficulty: str, max_items: int) ->
             "end": segment["end"],
             "type": kind,
             "min_listens": 2,
+            "transcript": text,
         }
 
         if kind == "dictation":
@@ -132,7 +135,11 @@ def score_answer(exercise: dict, answer: str | list[str], listens: int) -> dict:
         expected_list = [str(item) for item in expected]
         supplied_list = [answer] if isinstance(answer, str) else answer
         pairs = zip(expected_list, supplied_list)
-        matches = sum(1 for target, supplied in pairs if _normalize(target) == _normalize(str(supplied)))
+        matches = sum(
+            1
+            for target, supplied in pairs
+            if _normalize(target) == _normalize(str(supplied))
+        )
         accuracy = matches / max(1, len(expected_list))
         correct = len(supplied_list) == len(expected_list) and accuracy == 1.0
         score = max(0, round(accuracy * 100) - replay_penalty)
@@ -143,4 +150,5 @@ def score_answer(exercise: dict, answer: str | list[str], listens: int) -> dict:
         "accuracy": accuracy,
         "score": score,
         "correct_answer": correct_answer,
+        "transcript": exercise.get("transcript", ""),
     }
