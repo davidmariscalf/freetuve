@@ -6,6 +6,7 @@ from pathlib import Path
 
 
 _MODEL_LOCK = threading.Lock()
+_INFERENCE_LOCK = threading.Lock()
 
 
 def transcription_available() -> bool:
@@ -73,22 +74,22 @@ def transcribe_media_to_vtt(media_path: str | Path, output_path: str | Path, lan
     with _MODEL_LOCK:
         model = _load_model(model_name, device, compute_type, download_root)
 
-    segments, info = model.transcribe(
-        str(media),
-        language=normalize_language(language),
-        beam_size=5,
-        vad_filter=True,
-        condition_on_previous_text=False,
-    )
-
     cues: list[tuple[float, float, str]] = []
-    for segment in segments:
-        text = " ".join(str(segment.text).split()).strip()
-        if not text:
-            continue
-        start = max(0.0, float(segment.start))
-        end = max(start + 0.05, float(segment.end))
-        cues.append((start, end, text))
+    with _INFERENCE_LOCK:
+        segments, info = model.transcribe(
+            str(media),
+            language=normalize_language(language),
+            beam_size=5,
+            vad_filter=True,
+            condition_on_previous_text=False,
+        )
+        for segment in segments:
+            text = " ".join(str(segment.text).split()).strip()
+            if not text:
+                continue
+            start = max(0.0, float(segment.start))
+            end = max(start + 0.05, float(segment.end))
+            cues.append((start, end, text))
 
     if not cues:
         raise RuntimeError("La transcripción local no detectó voz utilizable en el vídeo.")
