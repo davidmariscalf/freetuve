@@ -3,6 +3,8 @@ from urllib.parse import urlparse
 
 from yt_dlp import YoutubeDL
 
+from .config import MAX_MEDIA_BYTES, MAX_VIDEO_DURATION_SECONDS
+
 
 ALLOWED_HOSTS = {
     "youtube.com",
@@ -36,9 +38,29 @@ def _pick_caption(directory: Path, language: str) -> Path | None:
     return (preferred or candidates)[0]
 
 
+def _preflight(url: str) -> dict:
+    options = {
+        "quiet": True,
+        "no_warnings": True,
+        "noplaylist": True,
+        "skip_download": True,
+        "socket_timeout": 30,
+    }
+    with YoutubeDL(options) as ydl:
+        info = ydl.extract_info(url, download=False)
+    if info.get("is_live") or info.get("live_status") in {"is_live", "is_upcoming"}:
+        raise RuntimeError("Los directos y estrenos en curso no son compatibles todavía.")
+    duration = info.get("duration")
+    if duration and float(duration) > MAX_VIDEO_DURATION_SECONDS:
+        minutes = MAX_VIDEO_DURATION_SECONDS // 60
+        raise RuntimeError(f"El vídeo es demasiado largo. El máximo configurado es de {minutes} minutos.")
+    return info
+
+
 def download_video_and_captions(url: str, directory: Path, language: str) -> dict:
     validate_youtube_url(url)
     directory.mkdir(parents=True, exist_ok=True)
+    preflight = _preflight(url)
 
     options = {
         "format": (
@@ -57,6 +79,8 @@ def download_video_and_captions(url: str, directory: Path, language: str) -> dic
         "no_warnings": True,
         "overwrites": True,
         "concurrent_fragment_downloads": 4,
+        "socket_timeout": 30,
+        "max_filesize": MAX_MEDIA_BYTES,
     }
 
     with YoutubeDL(options) as ydl:
@@ -72,15 +96,18 @@ def download_video_and_captions(url: str, directory: Path, language: str) -> dic
         reverse=True,
     )
     if not media_files:
-        raise RuntimeError("No se pudo obtener un archivo de vídeo reproducible.")
+        max_mb = MAX_MEDIA_BYTES // (1024 * 1024)
+        raise RuntimeError(
+            f"No se pudo obtener un vídeo reproducible. Puede superar el límite de {max_mb} MB o no estar disponible."
+        )
 
     caption = _pick_caption(directory, language)
     return {
-        "title": info.get("title") or "Lección sin título",
-        "video_id": info.get("id"),
-        "duration": info.get("duration"),
-        "thumbnail": info.get("thumbnail"),
-        "webpage_url": info.get("webpage_url") or url,
+        "title": info.get("title") or preflight.get("title") or "Lección sin título",
+        "video_id": info.get("id") or preflight.get("id"),
+        "duration": info.get("duration") or preflight.get("duration"),
+        "thumbnail": info.get("thumbnail") or preflight.get("thumbnail"),
+        "webpage_url": info.get("webpage_url") or preflight.get("webpage_url") or url,
         "media_path": str(media_files[0].resolve()),
         "caption_path": str(caption.resolve()) if caption else None,
     }
