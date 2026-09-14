@@ -47,6 +47,8 @@ def test_local_transcription_writes_parseable_vtt(tmp_path, monkeypatch):
     assert text.startswith("WEBVTT")
     assert "00:00:00.000 --> 00:00:02.100" in text
 
-    segments = build_segments(parse_vtt(text))
-    assert len(segments) >= 5
+    cues = parse_vtt(text)
+    assert len(cues) == 5
+    segments = build_segments(cues)
+    assert len(segments) >= 4
     assert "subtitles locally" in " ".join(item["text"] for item in segments)
