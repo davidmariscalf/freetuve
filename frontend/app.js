@@ -27,6 +27,20 @@ const installButton = document.querySelector('#install-app');
 
 const SAVED_KEY = 'freetuve.saved.v1';
 const OFFLINE_CACHE = 'freetuve-offline-lessons-v1';
+const API_BASE_URL = String(window.FREETUVE_API_BASE_URL || '').replace(/\\/+$/, '');
+
+function apiUrl(path) {
+  if (!path || /^https?:\\/\\//i.test(path)) return path;
+  return `${API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
+}
+
+function normalizeLesson(data) {
+  if (!data || typeof data !== 'object') return data;
+  for (const key of ['media_url', 'download_url']) {
+    if (data[key]) data[key] = apiUrl(data[key]);
+  }
+  return data;
+}
 
 let lesson = null;
 let queue = [];
@@ -55,7 +69,7 @@ function sleep(ms) {
 }
 
 async function request(url, options = {}) {
-  const response = await fetch(url, {
+  const response = await fetch(apiUrl(url), {
     ...options,
     headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
   });
@@ -143,7 +157,7 @@ async function removeSavedLesson(id) {
 async function pollLesson(id) {
   for (let attempt = 0; attempt < 1200; attempt += 1) {
     const data = await request(`/api/lessons/${id}`);
-    if (data.status === 'ready') return data;
+    if (data.status === 'ready') return normalizeLesson(data);
     if (data.status === 'error') throw new Error(data.error || 'No se pudo crear la lección.');
     setStatus(data.status === 'processing' ? 'Procesando vídeo, subtítulos y ejercicios…' : 'Preparando la lección…');
     await sleep(1500);
@@ -467,6 +481,7 @@ saveOfflineButton.addEventListener('click', async () => {
   setStatus('Preparando fragmentos offline…');
   try {
     const pack = await request(`/api/lessons/${lesson.id}/offline-pack`, { method: 'POST' });
+    for (const exercise of pack.exercises || []) exercise.clip_url = apiUrl(exercise.clip_url);
     const cache = await caches.open(OFFLINE_CACHE);
     for (let index = 0; index < pack.exercises.length; index += 1) {
       const exercise = pack.exercises[index];
