@@ -1,0 +1,8 @@
+[build]
+  command = "python3 scripts/netlify_build.py"
+  publish = "frontend"
+
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"
