@@ -77,6 +77,7 @@ def build_offline_pack(lesson: dict) -> dict:
         "offline_schema": 1,
         "id": lesson["id"],
         "title": lesson.get("title") or "Lección",
+        "platform": lesson.get("platform") or "web",
         "language": lesson.get("language"),
         "difficulty": lesson.get("difficulty"),
         "caption_source": lesson.get("caption_source"),
