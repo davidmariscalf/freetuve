@@ -18,18 +18,21 @@ def test_exercises_hide_words_and_have_answers():
     assert all(item["min_listens"] == 2 for item in exercises)
     assert any("[[blank:" in item["display"] for item in exercises if item["type"] != "dictation")
     assert all("expected" in item for item in exercises)
+    assert all(item["transcript"] == sample_segments()[i]["text"] for i, item in enumerate(exercises))
 
 
-def test_scoring_penalizes_extra_replays():
+def test_scoring_penalizes_extra_replays_and_reveals_transcript():
     exercise = {
         "type": "cloze",
         "expected": ["living"],
+        "transcript": "I have been living here for three years.",
         "min_listens": 2,
     }
     perfect = score_answer(exercise, ["living"], 2)
     replayed = score_answer(exercise, ["living"], 4)
     assert perfect["correct"] is True
     assert perfect["score"] == 100
+    assert perfect["transcript"] == exercise["transcript"]
     assert replayed["score"] < perfect["score"]
 
 
