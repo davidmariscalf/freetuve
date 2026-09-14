@@ -32,6 +32,11 @@ def _deletion_marker(lesson_id: str) -> Path:
     return DELETED_ROOT / f"{_safe_lesson_id(lesson_id)}.deleted"
 
 
+def _mark_deleted(lesson_id: str) -> None:
+    ensure_data_dirs()
+    _deletion_marker(lesson_id).write_text(_iso_now(), encoding="utf-8")
+
+
 def lesson_dir(lesson_id: str, *, create: bool = False) -> Path:
     safe = _safe_lesson_id(lesson_id)
     path = (LESSONS_ROOT / safe).resolve()
@@ -78,8 +83,7 @@ def delete_lesson(lesson_id: str) -> bool:
     directory = lesson_dir(lesson_id)
     if not directory.exists():
         return False
-    marker = _deletion_marker(lesson_id)
-    marker.write_text(_iso_now(), encoding="utf-8")
+    _mark_deleted(lesson_id)
     shutil.rmtree(directory, ignore_errors=True)
     return True
 
@@ -106,6 +110,10 @@ def cleanup_expired_lessons(ttl_hours: int) -> int:
         if timestamp is None:
             timestamp = datetime.fromtimestamp(directory.stat().st_mtime, tz=timezone.utc)
         if timestamp < cutoff:
+            try:
+                _mark_deleted(directory.name)
+            except ValueError:
+                pass
             shutil.rmtree(directory, ignore_errors=True)
             removed += 1
 
