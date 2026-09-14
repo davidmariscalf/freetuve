@@ -1,1 +1,4 @@
 yt-dlp @ git+https://github.com/yt-dlp/yt-dlp.git@bbc809a1161d3bfca51fa36f59dda35556ee85a0
+fastapi>=0.115,<1
+uvicorn[standard]>=0.30,<1
+pydantic>=2.8,<3
