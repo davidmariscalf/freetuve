@@ -45,3 +45,37 @@ def test_public_server_disables_generic_extractor(monkeypatch):
 def test_trusted_self_host_can_enable_generic_extractor(monkeypatch):
     monkeypatch.setattr(media, "ALLOW_GENERIC_EXTRACTOR", True)
     assert media._allowed_extractors() == ["default"]
+
+
+def test_final_media_size_is_enforced_after_download(tmp_path, monkeypatch):
+    class FakeDownloadYDL:
+        def __init__(self, options):
+            self.options = options
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def extract_info(self, _url, download=True):
+            assert download is True
+            output = tmp_path / "video.mp4"
+            output.write_bytes(b"x" * 11)
+            return {
+                "id": "video-id",
+                "title": "Example",
+                "duration": 30,
+                "extractor_key": "Example",
+                "webpage_url": "https://example.com/video",
+            }
+
+    monkeypatch.setattr(media, "YoutubeDL", FakeDownloadYDL)
+    monkeypatch.setattr(media, "MAX_MEDIA_BYTES", 10)
+    monkeypatch.setattr(media, "validate_source_url", lambda url: url)
+    monkeypatch.setattr(media, "_preflight", lambda _url: {"duration": 30})
+
+    with pytest.raises(RuntimeError, match="supera el límite"):
+        media.download_media_and_captions("https://example.com/video", tmp_path, "en")
+
+    assert not (tmp_path / "video.mp4").exists()
