@@ -1,4 +1,5 @@
 import asyncio
+import re
 import shutil
 import threading
 import time
@@ -13,6 +14,8 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from .config import (
+    ALLOW_GENERIC_EXTRACTOR,
+    APP_VERSION,
     CLEANUP_INTERVAL_SECONDS,
     CREATE_LIMIT_PER_HOUR,
     LESSON_TTL_HOURS,
@@ -32,7 +35,7 @@ from .storage import (
     save_lesson,
 )
 from .transcription import transcription_available
-from .youtube import validate_youtube_url
+from .youtube import validate_source_url
 
 
 _CREATE_EVENTS: dict[str, deque[float]] = defaultdict(deque)
@@ -73,7 +76,7 @@ async def lifespan(_: FastAPI):
             await task
 
 
-app = FastAPI(title="FreeTuve", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="FreeTuve", version=APP_VERSION, lifespan=lifespan)
 ensure_data_dirs()
 
 
@@ -106,6 +109,7 @@ def _public_lesson(lesson: dict) -> dict:
     result["retention_hours"] = LESSON_TTL_HOURS
     if result.get("status") == "ready":
         result["media_url"] = f"/api/lessons/{lesson['id']}/media"
+        result["download_url"] = f"/api/lessons/{lesson['id']}/download"
         result["progress"] = _progress(lesson)
         for exercise in result.get("exercises", []):
             exercise.pop("expected", None)
@@ -113,15 +117,36 @@ def _public_lesson(lesson: dict) -> dict:
     return result
 
 
+def _media_path(lesson: dict) -> Path:
+    if lesson.get("status") != "ready" or not lesson.get("media_path"):
+        raise HTTPException(status_code=409, detail="La lección todavía no está lista")
+    path = Path(lesson["media_path"]).resolve()
+    root = lesson_dir(lesson["id"]).resolve()
+    if root not in path.parents:
+        raise HTTPException(status_code=403, detail="Ruta de vídeo no válida")
+    if not path.exists() or not path.is_file():
+        raise HTTPException(status_code=404, detail="El vídeo ya no está disponible")
+    return path
+
+
+def _download_filename(lesson: dict, path: Path) -> str:
+    title = str(lesson.get("title") or "freetuve-video")
+    safe = re.sub(r"[^\w .()-]+", "_", title, flags=re.UNICODE).strip(" ._")
+    safe = safe[:120] or "freetuve-video"
+    return f"{safe}{path.suffix.casefold()}"
+
+
 @app.get("/api/health")
 def health() -> dict:
     return {
         "ok": True,
-        "version": "1.0.0",
+        "version": APP_VERSION,
         "ffmpeg": bool(shutil.which("ffmpeg")),
         "local_transcription": transcription_available(),
         "lesson_ttl_hours": LESSON_TTL_HOURS,
         "max_video_minutes": MAX_VIDEO_DURATION_SECONDS // 60,
+        "multiplatform": True,
+        "generic_extractor": ALLOW_GENERIC_EXTRACTOR,
     }
 
 
@@ -132,7 +157,7 @@ def create_lesson(payload: LessonCreate, background_tasks: BackgroundTasks, requ
     client = request.client.host if request.client else "unknown"
     _check_create_limit(client)
     try:
-        source_url = validate_youtube_url(str(payload.url))
+        source_url = validate_source_url(str(payload.url))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -167,15 +192,19 @@ def remove_lesson(lesson_id: str):
 @app.get("/api/lessons/{lesson_id}/media")
 def get_media(lesson_id: str):
     lesson = _load_or_404(lesson_id)
-    if lesson.get("status") != "ready" or not lesson.get("media_path"):
-        raise HTTPException(status_code=409, detail="La lección todavía no está lista")
-    path = Path(lesson["media_path"]).resolve()
-    root = lesson_dir(lesson_id).resolve()
-    if root not in path.parents:
-        raise HTTPException(status_code=403, detail="Ruta de vídeo no válida")
-    if not path.exists() or not path.is_file():
-        raise HTTPException(status_code=404, detail="El vídeo ya no está disponible")
+    path = _media_path(lesson)
     return FileResponse(path, headers={"Cache-Control": "private, max-age=3600"})
+
+
+@app.get("/api/lessons/{lesson_id}/download")
+def download_media(lesson_id: str):
+    lesson = _load_or_404(lesson_id)
+    path = _media_path(lesson)
+    return FileResponse(
+        path,
+        filename=_download_filename(lesson, path),
+        headers={"Cache-Control": "private, no-store"},
+    )
 
 
 @app.post("/api/lessons/{lesson_id}/offline-pack")
