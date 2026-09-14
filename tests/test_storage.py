@@ -20,7 +20,7 @@ def test_cleanup_removes_only_expired_lessons(tmp_path, monkeypatch):
     fresh_id = str(uuid4())
     old_id = str(uuid4())
     storage.save_lesson({"id": fresh_id, "status": "ready"})
-    storage.save_lesson({"id": old_id, "status": "ready"})
+    storage.save_lesson({"id": old_id, "status": "processing"})
 
     old = storage.load_lesson(old_id)
     old["updated_at"] = (datetime.now(timezone.utc) - timedelta(hours=72)).isoformat()
@@ -30,6 +30,8 @@ def test_cleanup_removes_only_expired_lessons(tmp_path, monkeypatch):
     assert storage.cleanup_expired_lessons(24) == 1
     assert storage.lesson_file(fresh_id).exists()
     assert not storage.lesson_dir(old_id).exists()
+    with pytest.raises(FileNotFoundError):
+        storage.save_lesson({"id": old_id, "status": "ready"})
 
 
 def test_delete_prevents_worker_from_recreating_lesson(tmp_path, monkeypatch):
