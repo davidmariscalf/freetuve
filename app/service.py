@@ -2,8 +2,14 @@ from pathlib import Path
 
 from .exercises import generate_exercises
 from .storage import lesson_dir, load_lesson, save_lesson
+from .transcription import transcribe_media_to_vtt
 from .vtt import build_segments, parse_vtt
 from .youtube import download_video_and_captions
+
+
+def _segments_from_vtt(path: str | Path) -> list[dict]:
+    text = Path(path).read_text(encoding="utf-8", errors="replace")
+    return build_segments(parse_vtt(text))
 
 
 def process_lesson(lesson_id: str) -> None:
@@ -19,12 +25,26 @@ def process_lesson(lesson_id: str) -> None:
             directory,
             lesson["language"],
         )
-        vtt_text = Path(media["caption_path"]).read_text(encoding="utf-8", errors="replace")
-        cues = parse_vtt(vtt_text)
-        segments = build_segments(cues)
+
+        caption_path = media.get("caption_path")
+        caption_source = "youtube"
+        segments = _segments_from_vtt(caption_path) if caption_path else []
+        transcription = None
+
+        if len(segments) < 5:
+            generated_caption = directory / "generated.transcript.vtt"
+            transcription = transcribe_media_to_vtt(
+                media["media_path"],
+                generated_caption,
+                lesson["language"],
+            )
+            caption_path = transcription["caption_path"]
+            caption_source = transcription["caption_source"]
+            segments = _segments_from_vtt(caption_path)
+
         if len(segments) < 5:
             raise RuntimeError(
-                "Los subtítulos no contienen suficientes frases útiles para crear una lección."
+                "No se detectaron suficientes frases útiles para crear una lección."
             )
 
         exercises = generate_exercises(
@@ -43,7 +63,9 @@ def process_lesson(lesson_id: str) -> None:
             "thumbnail": media["thumbnail"],
             "source_url": media["webpage_url"],
             "media_path": media["media_path"],
-            "caption_path": media["caption_path"],
+            "caption_path": caption_path,
+            "caption_source": caption_source,
+            "transcription": transcription,
             "exercise_count": len(exercises),
             "exercises": exercises,
         })
