@@ -13,10 +13,13 @@ def _segments_from_vtt(path: str | Path) -> list[dict]:
 
 
 def process_lesson(lesson_id: str) -> None:
-    lesson = load_lesson(lesson_id)
-    lesson["status"] = "processing"
-    lesson.pop("error", None)
-    save_lesson(lesson)
+    try:
+        lesson = load_lesson(lesson_id)
+        lesson["status"] = "processing"
+        lesson.pop("error", None)
+        save_lesson(lesson)
+    except FileNotFoundError:
+        return
 
     try:
         directory = lesson_dir(lesson_id)
@@ -75,8 +78,16 @@ def process_lesson(lesson_id: str) -> None:
             "exercises": exercises,
         })
         save_lesson(lesson)
+    except FileNotFoundError:
+        return
     except Exception as exc:
-        lesson = load_lesson(lesson_id)
+        try:
+            lesson = load_lesson(lesson_id)
+        except FileNotFoundError:
+            return
         lesson["status"] = "error"
         lesson["error"] = str(exc)[:700]
-        save_lesson(lesson)
+        try:
+            save_lesson(lesson)
+        except FileNotFoundError:
+            return
