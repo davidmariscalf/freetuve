@@ -10,11 +10,13 @@ from pathlib import Path
 from uuid import uuid4
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from .config import (
     ALLOW_GENERIC_EXTRACTOR,
+    ALLOWED_ORIGINS,
     APP_VERSION,
     CLEANUP_INTERVAL_SECONDS,
     CREATE_LIMIT_PER_HOUR,
@@ -77,6 +79,13 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="FreeTuve", version=APP_VERSION, lifespan=lifespan)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type"],
+)
 ensure_data_dirs()
 
 
