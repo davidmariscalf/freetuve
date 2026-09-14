@@ -30,7 +30,7 @@ const OFFLINE_CACHE = 'freetuve-offline-lessons-v1';
 const API_BASE_URL = String(window.FREETUVE_API_BASE_URL || '').replace(/\/+$/, '');
 
 function apiUrl(path) {
-  if (!path || /^https?:\\/\\//i.test(path)) return path;
+  if (!path || path.startsWith('http://') || path.startsWith('https://')) return path;
   return `${API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
 }
 
