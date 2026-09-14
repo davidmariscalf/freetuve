@@ -8,6 +8,7 @@ from uuid import UUID
 
 DATA_ROOT = Path(os.getenv("FREETUVE_DATA_DIR", "data")).resolve()
 LESSONS_ROOT = DATA_ROOT / "lessons"
+DELETED_ROOT = DATA_ROOT / "deleted"
 
 
 def _now() -> datetime:
@@ -20,10 +21,15 @@ def _iso_now() -> str:
 
 def ensure_data_dirs() -> None:
     LESSONS_ROOT.mkdir(parents=True, exist_ok=True)
+    DELETED_ROOT.mkdir(parents=True, exist_ok=True)
 
 
 def _safe_lesson_id(lesson_id: str) -> str:
     return str(UUID(lesson_id))
+
+
+def _deletion_marker(lesson_id: str) -> Path:
+    return DELETED_ROOT / f"{_safe_lesson_id(lesson_id)}.deleted"
 
 
 def lesson_dir(lesson_id: str, *, create: bool = False) -> Path:
@@ -42,6 +48,8 @@ def lesson_file(lesson_id: str) -> Path:
 
 def save_lesson(data: dict) -> None:
     ensure_data_dirs()
+    if _deletion_marker(data["id"]).exists():
+        raise FileNotFoundError(data["id"])
     directory = lesson_dir(data["id"], create=True)
     target = directory / "lesson.json"
     now = _iso_now()
@@ -49,10 +57,16 @@ def save_lesson(data: dict) -> None:
     data["updated_at"] = now
     tmp = target.with_suffix(".tmp")
     tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    if _deletion_marker(data["id"]).exists():
+        tmp.unlink(missing_ok=True)
+        shutil.rmtree(directory, ignore_errors=True)
+        raise FileNotFoundError(data["id"])
     tmp.replace(target)
 
 
 def load_lesson(lesson_id: str) -> dict:
+    if _deletion_marker(lesson_id).exists():
+        raise FileNotFoundError(lesson_id)
     target = lesson_file(lesson_id)
     if not target.exists():
         raise FileNotFoundError(lesson_id)
@@ -60,10 +74,13 @@ def load_lesson(lesson_id: str) -> dict:
 
 
 def delete_lesson(lesson_id: str) -> bool:
+    ensure_data_dirs()
     directory = lesson_dir(lesson_id)
     if not directory.exists():
         return False
-    shutil.rmtree(directory)
+    marker = _deletion_marker(lesson_id)
+    marker.write_text(_iso_now(), encoding="utf-8")
+    shutil.rmtree(directory, ignore_errors=True)
     return True
 
 
@@ -91,6 +108,14 @@ def cleanup_expired_lessons(ttl_hours: int) -> int:
         if timestamp < cutoff:
             shutil.rmtree(directory, ignore_errors=True)
             removed += 1
+
+    marker_cutoff = _now() - timedelta(days=7)
+    for marker in DELETED_ROOT.glob("*.deleted"):
+        try:
+            if datetime.fromtimestamp(marker.stat().st_mtime, tz=timezone.utc) < marker_cutoff:
+                marker.unlink(missing_ok=True)
+        except OSError:
+            pass
     return removed
 
 
