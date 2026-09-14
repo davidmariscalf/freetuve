@@ -4,7 +4,7 @@ from .exercises import generate_exercises
 from .storage import lesson_dir, load_lesson, save_lesson
 from .transcription import transcribe_media_to_vtt
 from .vtt import build_segments, parse_vtt
-from .youtube import download_video_and_captions
+from .youtube import download_media_and_captions
 
 
 def _segments_from_vtt(path: str | Path) -> list[dict]:
@@ -23,14 +23,14 @@ def process_lesson(lesson_id: str) -> None:
 
     try:
         directory = lesson_dir(lesson_id)
-        media = download_video_and_captions(
+        media = download_media_and_captions(
             lesson["source_url"],
             directory,
             lesson["language"],
         )
 
         caption_path = media.get("caption_path")
-        caption_source = "youtube"
+        caption_source = "source"
         segments = _segments_from_vtt(caption_path) if caption_path else []
         transcription = None
 
@@ -67,6 +67,7 @@ def process_lesson(lesson_id: str) -> None:
             "status": "ready",
             "title": media["title"],
             "video_id": media["video_id"],
+            "platform": media.get("platform") or "web",
             "duration": media["duration"],
             "thumbnail": media["thumbnail"],
             "source_url": media["webpage_url"],
