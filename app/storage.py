@@ -16,12 +16,13 @@ def _safe_lesson_id(lesson_id: str) -> str:
     return str(UUID(lesson_id))
 
 
-def lesson_dir(lesson_id: str) -> Path:
+def lesson_dir(lesson_id: str, *, create: bool = False) -> Path:
     safe = _safe_lesson_id(lesson_id)
     path = (LESSONS_ROOT / safe).resolve()
     if LESSONS_ROOT not in path.parents:
         raise ValueError("Invalid lesson id")
-    path.mkdir(parents=True, exist_ok=True)
+    if create:
+        path.mkdir(parents=True, exist_ok=True)
     return path
 
 
@@ -31,7 +32,8 @@ def lesson_file(lesson_id: str) -> Path:
 
 def save_lesson(data: dict) -> None:
     ensure_data_dirs()
-    target = lesson_file(data["id"])
+    directory = lesson_dir(data["id"], create=True)
+    target = directory / "lesson.json"
     tmp = target.with_suffix(".tmp")
     tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     tmp.replace(target)
