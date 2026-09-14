@@ -55,7 +55,7 @@ async function pollLesson(id) {
     const data = await request(`/api/lessons/${id}`);
     if (data.status === 'ready') return data;
     if (data.status === 'error') throw new Error(data.error || 'No se pudo crear la lección.');
-    setStatus('Procesando vídeo y creando ejercicios…');
+    setStatus('Procesando vídeo, subtítulos y ejercicios…');
     await sleep(1500);
   }
   throw new Error('El procesamiento está tardando demasiado. Prueba con un vídeo más corto.');
@@ -250,9 +250,10 @@ answerForm.addEventListener('submit', async event => {
     });
     scores.push(result.score);
     feedback.className = `feedback ${result.correct ? 'good' : 'bad'}`;
-    feedback.textContent = result.correct
+    const verdict = result.correct
       ? `Correcto. ${result.score}/100.`
       : `No del todo. Respuesta: ${formatCorrectAnswer(result.correct_answer)} · ${result.score}/100.`;
+    feedback.textContent = `${verdict} Subtítulo: “${result.transcript}”`;
     answerForm.querySelectorAll('input, textarea, button').forEach(el => { el.disabled = true; });
     nextButton.classList.remove('hidden');
     if (!result.correct) {
