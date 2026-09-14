@@ -1,6 +1,14 @@
-const SHELL_CACHE = 'freetuve-shell-v1';
+const SHELL_CACHE = 'freetuve-shell-v2';
 const OFFLINE_CACHE = 'freetuve-offline-lessons-v1';
-const SHELL_ASSETS = ['/', '/styles.css', '/app.js', '/manifest.webmanifest', '/icon.svg'];
+const SHELL_ASSETS = [
+  '/',
+  '/styles.css',
+  '/app.js',
+  '/manifest.webmanifest',
+  '/icon.svg',
+  '/icon-192.png',
+  '/icon-512.png',
+];
 
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(SHELL_CACHE).then(cache => cache.addAll(SHELL_ASSETS)).then(() => self.skipWaiting()));
