@@ -23,6 +23,7 @@ let listens = 0;
 let selectedChoice = null;
 let stopHandler = null;
 let scores = [];
+let retryCounts = new Map();
 
 function setStatus(message, isError = false) {
   statusBox.textContent = message;
@@ -40,8 +41,8 @@ function sleep(ms) {
 
 async function request(url, options = {}) {
   const response = await fetch(url, {
-    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
     ...options,
+    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
   });
   let payload = null;
   try { payload = await response.json(); } catch (_) { payload = {}; }
@@ -92,6 +93,7 @@ function startLesson() {
   queue = lesson.exercises.map(item => item.id);
   queueIndex = 0;
   scores = [];
+  retryCounts = new Map();
   workspace.classList.remove('hidden');
   loadCurrent();
   workspace.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -234,7 +236,7 @@ function formatCorrectAnswer(value) {
 answerForm.addEventListener('submit', async event => {
   event.preventDefault();
   const answer = collectAnswer();
-  if ((Array.isArray(answer) && answer.some(item => !item)) || (!Array.isArray(answer) && !answer)) {
+  if ((Array.isArray(answer) && (answer.length === 0 || answer.some(item => !item))) || (!Array.isArray(answer) && !answer)) {
     feedback.className = 'feedback bad';
     feedback.textContent = 'Completa la respuesta antes de comprobarla.';
     return;
@@ -254,8 +256,12 @@ answerForm.addEventListener('submit', async event => {
     answerForm.querySelectorAll('input, textarea, button').forEach(el => { el.disabled = true; });
     nextButton.classList.remove('hidden');
     if (!result.correct) {
-      const insertAt = Math.min(queueIndex + 3, queue.length);
-      queue.splice(insertAt, 0, current.id);
+      const retries = retryCounts.get(current.id) || 0;
+      if (retries < 2) {
+        retryCounts.set(current.id, retries + 1);
+        const insertAt = Math.min(queueIndex + 3, queue.length);
+        queue.splice(insertAt, 0, current.id);
+      }
     }
     updateProgress();
   } catch (error) {
@@ -282,6 +288,6 @@ function finishLesson() {
   progressLabel.textContent = 'Lección terminada';
   const average = scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
   feedback.className = 'feedback good';
-  feedback.textContent = `Has terminado. Puntuación media: ${average.toFixed(0)}/100. Las frases falladas han reaparecido durante la sesión.`;
+  feedback.textContent = `Has terminado. Puntuación media: ${average.toFixed(0)}/100. Las frases falladas se han repetido hasta dos veces durante la sesión.`;
   scoreLabel.textContent = `Puntuación media: ${average.toFixed(0)}`;
 }
