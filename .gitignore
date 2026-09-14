@@ -1,7 +1,10 @@
 .venv/
 __pycache__/
 *.py[cod]
+.pytest_cache/
+.coverage
 .vendor/
 downloads/
+data/
 .env
 .DS_Store
