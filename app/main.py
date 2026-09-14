@@ -11,10 +11,11 @@ from .exercises import score_answer
 from .models import AttemptRequest, LessonCreate
 from .service import process_lesson
 from .storage import create_pending_lesson, ensure_data_dirs, lesson_dir, load_lesson, save_lesson
+from .transcription import transcription_available
 from .youtube import validate_youtube_url
 
 
-app = FastAPI(title="FreeTuve", version="0.1.0")
+app = FastAPI(title="FreeTuve", version="0.2.0")
 ensure_data_dirs()
 
 
@@ -47,12 +48,17 @@ def _public_lesson(lesson: dict) -> dict:
         result["progress"] = _progress(lesson)
         for exercise in result.get("exercises", []):
             exercise.pop("expected", None)
+            exercise.pop("transcript", None)
     return result
 
 
 @app.get("/api/health")
 def health() -> dict:
-    return {"ok": True, "ffmpeg": bool(shutil.which("ffmpeg"))}
+    return {
+        "ok": True,
+        "ffmpeg": bool(shutil.which("ffmpeg")),
+        "local_transcription": transcription_available(),
+    }
 
 
 @app.post("/api/lessons", status_code=202)
