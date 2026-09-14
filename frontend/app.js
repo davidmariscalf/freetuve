@@ -141,7 +141,7 @@ async function removeSavedLesson(id) {
 }
 
 async function pollLesson(id) {
-  for (let attempt = 0; attempt < 240; attempt += 1) {
+  for (let attempt = 0; attempt < 1200; attempt += 1) {
     const data = await request(`/api/lessons/${id}`);
     if (data.status === 'ready') return data;
     if (data.status === 'error') throw new Error(data.error || 'No se pudo crear la lección.');
@@ -216,7 +216,7 @@ function startLesson(isOffline) {
 }
 
 function startSavedLesson(saved) {
-  lesson = structuredClone(saved);
+  lesson = typeof structuredClone === 'function' ? structuredClone(saved) : JSON.parse(JSON.stringify(saved));
   startLesson(true);
   hideStatus();
 }
@@ -267,7 +267,6 @@ function renderQuestion() {
     question.append(prompt, area);
     return;
   }
-
   const parts = current.display.split(/(\[\[blank:\d+\]\])/g);
   const sentence = document.createElement('div');
   for (const part of parts) {
@@ -290,7 +289,6 @@ function renderQuestion() {
     }
   }
   question.append(sentence);
-
   if (current.type === 'multiple_choice') {
     const grid = document.createElement('div');
     grid.className = 'choice-grid';
@@ -323,7 +321,6 @@ async function playCurrent() {
     locked.classList.add('hidden');
     answerForm.classList.remove('hidden');
   }
-
   if (offlineMode) {
     offlineAudio.pause();
     offlineAudio.src = current.clip_url;
@@ -332,7 +329,6 @@ async function playCurrent() {
     await offlineAudio.play();
     return;
   }
-
   if (stopHandler) video.removeEventListener('timeupdate', stopHandler);
   video.pause();
   video.currentTime = Math.max(0, current.start - 0.12);
@@ -353,9 +349,7 @@ listenButton.addEventListener('click', async () => {
   try {
     await playCurrent();
   } catch (_) {
-    setStatus(offlineMode
-      ? 'No se pudo abrir este fragmento offline. Elimínalo y vuelve a guardarlo cuando tengas conexión.'
-      : 'El navegador ha bloqueado la reproducción. Pulsa play en el vídeo y vuelve a intentarlo.', true);
+    setStatus(offlineMode ? 'No se pudo abrir este fragmento offline. Elimínalo y vuelve a guardarlo cuando tengas conexión.' : 'El navegador ha bloqueado la reproducción. Pulsa play en el vídeo y vuelve a intentarlo.', true);
   }
 });
 
@@ -368,13 +362,7 @@ function collectAnswer() {
 }
 
 function normalizeAnswer(value) {
-  return String(value)
-    .normalize('NFKC')
-    .toLocaleLowerCase()
-    .replace(/[’]/g, "'")
-    .replace(/[^\p{L}\p{N}'-]+/gu, ' ')
-    .trim()
-    .replace(/\s+/g, ' ');
+  return String(value).normalize('NFKC').toLocaleLowerCase().replace(/[’]/g, "'").replace(/[^\p{L}\p{N}'-]+/gu, ' ').trim().replace(/\s+/g, ' ');
 }
 
 function editDistance(a, b) {
@@ -398,25 +386,13 @@ function scoreOffline(exercise, answer, listenCountValue) {
     const supplied = normalizeAnswer(Array.isArray(answer) ? answer.join(' ') : answer);
     const maxLength = Math.max(1, expected.length, supplied.length);
     const similarity = Math.max(0, 1 - editDistance(expected, supplied) / maxLength);
-    return {
-      correct: similarity >= 0.96,
-      accuracy: similarity,
-      score: Math.max(0, Math.round(similarity * 100) - penalty),
-      correct_answer: exercise.expected,
-      transcript: exercise.transcript || String(exercise.expected),
-    };
+    return { correct: similarity >= 0.96, accuracy: similarity, score: Math.max(0, Math.round(similarity * 100) - penalty), correct_answer: exercise.expected, transcript: exercise.transcript || String(exercise.expected) };
   }
   const expected = exercise.expected.map(normalizeAnswer);
   const supplied = (Array.isArray(answer) ? answer : [answer]).map(normalizeAnswer);
   const matches = expected.reduce((sum, item, index) => sum + (item === supplied[index] ? 1 : 0), 0);
   const accuracy = matches / Math.max(1, expected.length);
-  return {
-    correct: supplied.length === expected.length && accuracy === 1,
-    accuracy,
-    score: Math.max(0, Math.round(accuracy * 100) - penalty),
-    correct_answer: exercise.expected,
-    transcript: exercise.transcript || '',
-  };
+  return { correct: supplied.length === expected.length && accuracy === 1, accuracy, score: Math.max(0, Math.round(accuracy * 100) - penalty), correct_answer: exercise.expected, transcript: exercise.transcript || '' };
 }
 
 function formatCorrectAnswer(value) {
@@ -434,17 +410,10 @@ answerForm.addEventListener('submit', async event => {
   const submit = document.querySelector('#submit-answer');
   submit.disabled = true;
   try {
-    const result = offlineMode
-      ? scoreOffline(current, answer, listens)
-      : await request(`/api/lessons/${lesson.id}/attempts`, {
-          method: 'POST',
-          body: JSON.stringify({ exercise_id: current.id, answer, listens }),
-        });
+    const result = offlineMode ? scoreOffline(current, answer, listens) : await request(`/api/lessons/${lesson.id}/attempts`, { method: 'POST', body: JSON.stringify({ exercise_id: current.id, answer, listens }) });
     scores.push(result.score);
     feedback.className = `feedback ${result.correct ? 'good' : 'bad'}`;
-    feedback.textContent = result.correct
-      ? `Correcto. ${result.score}/100.`
-      : `No del todo. Respuesta: ${formatCorrectAnswer(result.correct_answer)} · ${result.score}/100.`;
+    feedback.textContent = result.correct ? `Correcto. ${result.score}/100.` : `No del todo. Respuesta: ${formatCorrectAnswer(result.correct_answer)} · ${result.score}/100.`;
     if (result.transcript) {
       transcript.className = 'transcript';
       transcript.textContent = result.transcript;
@@ -455,8 +424,7 @@ answerForm.addEventListener('submit', async event => {
       const retries = retryCounts.get(current.id) || 0;
       if (retries < 2) {
         retryCounts.set(current.id, retries + 1);
-        const insertAt = Math.min(queueIndex + 3, queue.length);
-        queue.splice(insertAt, 0, current.id);
+        queue.splice(Math.min(queueIndex + 3, queue.length), 0, current.id);
       }
     }
     updateProgress();
@@ -522,9 +490,7 @@ saveOfflineButton.addEventListener('click', async () => {
 deleteServerButton.addEventListener('click', async () => {
   if (!lesson || offlineMode) return;
   const saved = loadSavedMap()[lesson.id];
-  const message = saved
-    ? 'Se borrará la copia temporal del servidor. La lección offline seguirá en este dispositivo.'
-    : 'Se borrará la lección y el vídeo temporal del servidor. Si no la has guardado offline, no podrás continuar.';
+  const message = saved ? 'Se borrará la copia temporal del servidor. La lección offline seguirá en este dispositivo.' : 'Se borrará la lección y el vídeo temporal del servidor. Si no la has guardado offline, no podrás continuar.';
   if (!window.confirm(message)) return;
   try {
     await request(`/api/lessons/${lesson.id}`, { method: 'DELETE' });
