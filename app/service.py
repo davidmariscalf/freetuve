@@ -33,13 +33,18 @@ def process_lesson(lesson_id: str) -> None:
 
         if len(segments) < 5:
             generated_caption = directory / "generated.transcript.vtt"
-            transcription = transcribe_media_to_vtt(
+            transcription_result = transcribe_media_to_vtt(
                 media["media_path"],
                 generated_caption,
                 lesson["language"],
             )
-            caption_path = transcription["caption_path"]
-            caption_source = transcription["caption_source"]
+            caption_path = transcription_result["caption_path"]
+            caption_source = transcription_result["caption_source"]
+            transcription = {
+                key: value
+                for key, value in transcription_result.items()
+                if key != "caption_path"
+            }
             segments = _segments_from_vtt(caption_path)
 
         if len(segments) < 5:
