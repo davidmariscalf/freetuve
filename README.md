@@ -5,15 +5,45 @@ FreeTuve converts a YouTube video into an interactive language listening lesson.
 ## What it does
 
 1. Paste a YouTube URL.
-2. Choose the subtitle language and difficulty.
+2. Choose the language and difficulty.
 3. FreeTuve downloads a browser playable copy of the video with `yt-dlp` and uses FFmpeg when streams need merging.
-4. It retrieves manual or automatic WebVTT subtitles, removes caption noise and groups them into useful short phrases.
-5. Each phrase becomes a listening exercise: cloze, multiple choice or dictation depending on difficulty.
-6. The learner must listen at least twice before answering. Extra replays are allowed with a small score penalty.
-7. Wrong answers are scheduled again later in the same lesson.
-8. Progress and attempts are stored locally in `data/`.
+4. It first tries manual or automatic YouTube WebVTT subtitles.
+5. If usable subtitles are missing or too sparse, FreeTuve automatically transcribes the video's speech locally with `faster-whisper` and creates its own WebVTT subtitles.
+6. Subtitle cues are cleaned and grouped into useful short phrases.
+7. Each phrase becomes a listening exercise: cloze, multiple choice or dictation depending on difficulty.
+8. The learner must listen at least twice before answering. Extra replays are allowed with a small score penalty.
+9. After answering, the complete subtitle is revealed below the video so the learner can compare what they heard with the actual phrase.
+10. Wrong answers are scheduled again later in the same lesson.
+11. Progress and attempts are stored locally in `data/`.
 
-The exercise generator is deterministic and does not require an AI API or paid service.
+The exercise generator and speech-to-text pipeline do not require an AI API or paid service.
+
+## Subtitle strategy
+
+FreeTuve uses this order:
+
+```text
+YouTube manual/automatic subtitles
+          ↓ missing or unusable
+local faster-whisper transcription
+          ↓
+WebVTT cleanup and phrase segmentation
+          ↓
+interactive exercises
+```
+
+Local transcription defaults to the multilingual `small` Whisper model on CPU using INT8. The model is downloaded on first use and cached under `data/models/` when using the default configuration.
+
+Environment variables:
+
+```text
+FREETUVE_WHISPER_MODEL=small
+FREETUVE_WHISPER_DEVICE=cpu
+FREETUVE_WHISPER_COMPUTE_TYPE=int8
+FREETUVE_MODEL_DIR=/custom/model/cache
+```
+
+For a CUDA deployment, set the device and an appropriate compute type for the installed environment.
 
 ## Run with Docker
 
@@ -22,6 +52,8 @@ docker compose up --build
 ```
 
 Open `http://localhost:8000`.
+
+The first lesson that needs local transcription may take longer because the speech model has to be downloaded once. The `data/` volume also keeps the model cache between container restarts.
 
 ## Run locally
 
@@ -43,25 +75,26 @@ pip install -r requirements-dev.txt
 pytest -q
 ```
 
-CI also compiles the Python package before running tests.
+CI compiles the Python package, checks frontend JavaScript syntax and runs the unit tests. Tests do not download a Whisper model.
 
-## Current product scope
+## Product scope
 
-The finished MVP supports YouTube, six language choices in the UI, difficulty levels from easy to expert, up to 40 exercises per lesson, local progress, replay speed controls and adaptive review of mistakes.
+The MVP supports YouTube, six language choices in the UI, difficulty levels from easy to expert, up to 40 exercises per lesson, local progress, replay speed controls, adaptive review of mistakes and local speech-to-text fallback.
 
-A video needs usable YouTube subtitles in the selected language. Local speech to text is intentionally not bundled yet because shipping a large transcription model would make the first deployment substantially heavier and slower. This is the main functional limitation of the MVP.
+The main remaining operational limitation is compute: local transcription is substantially heavier than consuming existing subtitles, especially on CPU and for long videos. YouTube availability, geographic restrictions and source-platform changes can also affect ingestion.
 
 ## Architecture
 
 ```text
-frontend/          browser UI and lesson player
-app/main.py        FastAPI routes
-app/youtube.py     YouTube validation and yt-dlp ingestion
-app/vtt.py         WebVTT cleanup and phrase segmentation
-app/exercises.py   exercise generation and scoring
-app/service.py     processing pipeline
-app/storage.py     local persistent lesson storage
-tests/             unit tests
+frontend/              browser UI and lesson player
+app/main.py            FastAPI routes
+app/youtube.py         YouTube validation and yt-dlp ingestion
+app/transcription.py   faster-whisper local speech-to-text and WebVTT creation
+app/vtt.py             WebVTT cleanup and phrase segmentation
+app/exercises.py       exercise generation and scoring
+app/service.py         processing pipeline and caption fallback selection
+app/storage.py         local persistent lesson storage
+tests/                 unit tests
 ```
 
 ## Safety and usage
@@ -72,4 +105,4 @@ The server deliberately accepts only HTTPS YouTube hosts rather than arbitrary U
 
 ## Upstream components
 
-The project integrates `yt-dlp` and FFmpeg without copying their full repositories into FreeTuve. Exact upstream references are recorded in `upstream.lock.json`; license notes are in `THIRD_PARTY.md`.
+The project integrates `yt-dlp`, FFmpeg and `faster-whisper` without copying their full repositories into FreeTuve. Exact upstream references are recorded in `upstream.lock.json`; license notes are in `THIRD_PARTY.md`.
