@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from .exercises import score_answer
 from .models import AttemptRequest, LessonCreate
 from .service import process_lesson
-from .storage import create_pending_lesson, ensure_data_dirs, load_lesson, save_lesson
+from .storage import create_pending_lesson, ensure_data_dirs, lesson_dir, load_lesson, save_lesson
 from .youtube import validate_youtube_url
 
 
@@ -87,9 +87,12 @@ def get_media(lesson_id: str):
     if lesson.get("status") != "ready" or not lesson.get("media_path"):
         raise HTTPException(status_code=409, detail="La lección todavía no está lista")
     path = Path(lesson["media_path"]).resolve()
+    root = lesson_dir(lesson_id).resolve()
+    if root not in path.parents:
+        raise HTTPException(status_code=403, detail="Ruta de vídeo no válida")
     if not path.exists() or not path.is_file():
         raise HTTPException(status_code=404, detail="El vídeo ya no está disponible")
-    return FileResponse(path, filename=path.name)
+    return FileResponse(path)
 
 
 @app.post("/api/lessons/{lesson_id}/attempts")
