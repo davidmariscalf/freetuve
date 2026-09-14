@@ -2,7 +2,6 @@ name: test
 
 on:
   push:
-    branches: [main, "build/**", "feat/**"]
   pull_request:
 
 jobs:
@@ -17,8 +16,12 @@ jobs:
         run: pip install -r requirements-dev.txt
       - name: Compile Python
         run: python -m compileall app
-      - name: Check JavaScript syntax
-        run: node --check frontend/app.js
+      - name: Check frontend JavaScript syntax
+        run: |
+          node --check frontend/app.js
+          node --check frontend/sw.js
+      - name: Validate PWA manifest
+        run: python -m json.tool frontend/manifest.webmanifest > /dev/null
       - name: Test
         shell: bash
         run: |
@@ -26,6 +29,16 @@ jobs:
           pytest -q 2>&1 | tee pytest.log
       - name: Build production Docker image
         run: docker build -t freetuve-ci .
+      - name: Smoke test production image
+        run: |
+          docker run -d --name freetuve-ci-run -p 18000:8000 freetuve-ci
+          for i in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:18000/api/health > health.json; then break; fi
+            sleep 1
+          done
+          cat health.json
+          python -c 'import json; d=json.load(open("health.json")); assert d["ok"] and d["ffmpeg"] and d["local_transcription"]'
+          docker rm -f freetuve-ci-run
       - name: Upload test log
         if: always()
         uses: actions/upload-artifact@v4
