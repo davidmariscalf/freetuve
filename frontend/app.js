@@ -27,7 +27,7 @@ const installButton = document.querySelector('#install-app');
 
 const SAVED_KEY = 'freetuve.saved.v1';
 const OFFLINE_CACHE = 'freetuve-offline-lessons-v1';
-const API_BASE_URL = String(window.FREETUVE_API_BASE_URL || '').replace(/\\/+$/, '');
+const API_BASE_URL = String(window.FREETUVE_API_BASE_URL || '').replace(/\/+$/, '');
 
 function apiUrl(path) {
   if (!path || /^https?:\\/\\//i.test(path)) return path;
