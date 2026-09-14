@@ -24,6 +24,17 @@ class FakeModel:
         return segments, info
 
 
+class FlakyAudioModel(FakeModel):
+    def __init__(self):
+        self.calls = []
+
+    def transcribe(self, media_path, **kwargs):
+        self.calls.append(media_path)
+        if len(self.calls) == 1:
+            raise ValueError("Frame does not match AudioFifo parameters")
+        return super().transcribe(media_path, **kwargs)
+
+
 def test_language_normalization():
     assert transcription.normalize_language("en-US") == "en"
     assert transcription.normalize_language("pt_BR") == "pt"
@@ -42,6 +53,7 @@ def test_local_transcription_writes_parseable_vtt(tmp_path, monkeypatch):
     assert result["caption_source"] == "faster-whisper"
     assert result["detected_language"] == "en"
     assert result["segment_count"] == 5
+    assert result["audio_normalized"] is False
     assert output.exists()
     text = output.read_text(encoding="utf-8")
     assert text.startswith("WEBVTT")
@@ -52,3 +64,26 @@ def test_local_transcription_writes_parseable_vtt(tmp_path, monkeypatch):
     segments = build_segments(cues)
     assert len(segments) >= 4
     assert "subtitles locally" in " ".join(item["text"] for item in segments)
+
+
+def test_transcription_retries_with_ffmpeg_normalized_audio(tmp_path, monkeypatch):
+    media = tmp_path / "video.mp4"
+    media.write_bytes(b"fake")
+    output = tmp_path / "generated.vtt"
+    model = FlakyAudioModel()
+
+    monkeypatch.setattr(transcription, "transcription_available", lambda: True)
+    monkeypatch.setattr(transcription, "_load_model", lambda *args: model)
+
+    def fake_normalize(_media, normalized):
+        normalized.write_bytes(b"normalized")
+
+    monkeypatch.setattr(transcription, "_normalize_audio_for_whisper", fake_normalize)
+
+    result = transcription.transcribe_media_to_vtt(media, output, "en")
+
+    assert result["audio_normalized"] is True
+    assert len(model.calls) == 2
+    assert model.calls[1].endswith(".whisper.wav")
+    assert not output.with_suffix(".whisper.wav").exists()
+    assert output.exists()
