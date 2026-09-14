@@ -28,3 +28,11 @@ CLEANUP_INTERVAL_SECONDS = _int_env("FREETUVE_CLEANUP_INTERVAL_SECONDS", 3600, 6
 CREATE_LIMIT_PER_HOUR = _int_env("FREETUVE_CREATE_LIMIT_PER_HOUR", 10, 1, 1000)
 OFFLINE_AUDIO_BITRATE_KBPS = _int_env("FREETUVE_OFFLINE_AUDIO_KBPS", 64, 32, 192)
 ALLOW_GENERIC_EXTRACTOR = _bool_env("FREETUVE_ALLOW_GENERIC_EXTRACTOR", False)
+ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv(
+        "FREETUVE_ALLOWED_ORIGINS",
+        "http://localhost:8000,http://127.0.0.1:8000,https://freetuve.netlify.app",
+    ).split(",")
+    if origin.strip()
+]
