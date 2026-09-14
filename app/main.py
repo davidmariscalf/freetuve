@@ -43,6 +43,8 @@ def _public_lesson(lesson: dict) -> dict:
     result.pop("media_path", None)
     result.pop("caption_path", None)
     result.pop("attempts", None)
+    if isinstance(result.get("transcription"), dict):
+        result["transcription"].pop("caption_path", None)
     if result.get("status") == "ready":
         result["media_url"] = f"/api/lessons/{lesson['id']}/media"
         result["progress"] = _progress(lesson)
