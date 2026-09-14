@@ -3,8 +3,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b0d12">
+  <meta name="description" content="Convierte vídeos de YouTube en ejercicios interactivos de listening y guárdalos para estudiar sin conexión.">
   <title>FreeTuve</title>
-  <meta name="description" content="Convierte vídeos de YouTube en ejercicios interactivos de listening.">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
@@ -13,8 +16,9 @@
       <div>
         <span class="eyebrow">FreeTuve</span>
         <h1>Aprende idiomas con vídeos que sí quieres ver</h1>
-        <p>Pega un vídeo de YouTube. FreeTuve lo convierte en una lección de listening, huecos, opción múltiple y dictado.</p>
+        <p>Pega un vídeo de YouTube. FreeTuve lo convierte en listening, huecos, opción múltiple y dictado, y puede guardar solo los fragmentos necesarios para estudiar sin conexión.</p>
       </div>
+      <button id="install-app" class="secondary hidden" type="button">Instalar app</button>
     </header>
 
     <section class="card setup" id="setup">
@@ -52,28 +56,45 @@
           </label>
         </div>
         <button class="primary" type="submit">Crear lección</button>
-        <p class="legal">Usa únicamente vídeos que tengas permiso para descargar y procesar.</p>
+        <p class="legal">Usa únicamente vídeos que tengas permiso para descargar y procesar. Los archivos del servidor se eliminan automáticamente.</p>
       </form>
       <div id="status" class="status hidden" role="status" aria-live="polite"></div>
+    </section>
+
+    <section id="saved-section" class="card saved-card hidden">
+      <div class="section-heading">
+        <div>
+          <span class="eyebrow">Sin conexión</span>
+          <h2>Lecciones guardadas</h2>
+        </div>
+        <span id="connection-state" class="connection-pill">Online</span>
+      </div>
+      <div id="saved-lessons" class="saved-list"></div>
     </section>
 
     <section id="workspace" class="workspace hidden">
       <div class="video-card card">
         <div class="video-meta">
           <div>
-            <span class="eyebrow">Lección</span>
+            <span id="lesson-mode" class="eyebrow">Lección</span>
             <h2 id="lesson-title">Vídeo</h2>
           </div>
-          <div class="speed-control">
-            <label for="speed">Velocidad</label>
-            <select id="speed">
-              <option value="0.75">0,75×</option>
-              <option value="1" selected>1×</option>
-              <option value="1.25">1,25×</option>
-            </select>
+          <div class="lesson-actions">
+            <button id="save-offline" class="secondary" type="button">Guardar offline</button>
+            <button id="delete-server" class="ghost" type="button">Borrar del servidor</button>
+            <div class="speed-control">
+              <label for="speed">Velocidad</label>
+              <select id="speed">
+                <option value="0.75">0,75×</option>
+                <option value="1" selected>1×</option>
+                <option value="1.25">1,25×</option>
+              </select>
+            </div>
           </div>
         </div>
         <video id="video" controls preload="metadata"></video>
+        <audio id="offline-audio" controls preload="metadata" class="hidden"></audio>
+        <p id="media-note" class="media-note hidden"></p>
       </div>
 
       <section class="lesson-card card">
@@ -95,6 +116,7 @@
         </form>
 
         <div id="feedback" class="feedback hidden" aria-live="polite"></div>
+        <div id="transcript" class="transcript hidden"></div>
         <button id="next" class="secondary hidden" type="button">Siguiente</button>
       </section>
     </section>
