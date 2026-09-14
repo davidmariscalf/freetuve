@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0b0d12">
-  <meta name="description" content="Convierte vídeos de YouTube en ejercicios interactivos de listening y guárdalos para estudiar sin conexión.">
+  <meta name="description" content="Convierte vídeos de plataformas compatibles en ejercicios interactivos de listening y guárdalos para estudiar sin conexión.">
   <title>FreeTuve</title>
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/icon.svg" type="image/svg+xml">
@@ -16,7 +16,7 @@
       <div>
         <span class="eyebrow">FreeTuve</span>
         <h1>Aprende idiomas con vídeos que sí quieres ver</h1>
-        <p>Pega un vídeo de YouTube. FreeTuve lo convierte en listening, huecos, opción múltiple y dictado, y puede guardar solo los fragmentos necesarios para estudiar sin conexión.</p>
+        <p>Pega un vídeo de una plataforma compatible. FreeTuve lo convierte en listening, huecos, opción múltiple y dictado, y puede guardar solo los fragmentos necesarios para estudiar sin conexión.</p>
       </div>
       <button id="install-app" class="secondary hidden" type="button">Instalar app</button>
     </header>
@@ -24,9 +24,10 @@
     <section class="card setup" id="setup">
       <form id="lesson-form">
         <label>
-          Vídeo de YouTube
-          <input id="url" name="url" type="url" required placeholder="https://www.youtube.com/watch?v=..." autocomplete="off">
+          Enlace del vídeo
+          <input id="url" name="url" type="url" required placeholder="https://..." autocomplete="off">
         </label>
+        <p class="source-hint">YouTube, Vimeo, TikTok, X, Instagram y muchas otras plataformas compatibles con yt-dlp. Algunos vídeos pueden exigir cuenta, cookies o no estar disponibles por DRM.</p>
         <div class="grid-3">
           <label>Idioma
             <select id="language" name="language">
@@ -56,7 +57,7 @@
           </label>
         </div>
         <button class="primary" type="submit">Crear lección</button>
-        <p class="legal">Usa únicamente vídeos que tengas permiso para descargar y procesar. Los archivos del servidor se eliminan automáticamente.</p>
+        <p class="legal">Usa únicamente vídeos que tengas permiso o derecho a descargar y procesar. FreeTuve no elude DRM ni controles de acceso. Los archivos del servidor se eliminan automáticamente.</p>
       </form>
       <div id="status" class="status hidden" role="status" aria-live="polite"></div>
     </section>
@@ -80,6 +81,7 @@
             <h2 id="lesson-title">Vídeo</h2>
           </div>
           <div class="lesson-actions">
+            <a id="download-video" class="secondary hidden" href="#" download>Descargar vídeo</a>
             <button id="save-offline" class="secondary" type="button">Guardar offline</button>
             <button id="delete-server" class="ghost" type="button">Borrar del servidor</button>
             <div class="speed-control">
@@ -122,5 +124,24 @@
     </section>
   </main>
   <script src="/app.js" defer></script>
+  <script>
+    window.addEventListener('DOMContentLoaded', () => {
+      const video = document.querySelector('#video');
+      const link = document.querySelector('#download-video');
+      const syncDownloadLink = () => {
+        const src = video.getAttribute('src') || '';
+        const match = src.match(/^(.*\/api\/lessons\/[^/]+)\/media(?:\?.*)?$/);
+        if (!match) {
+          link.classList.add('hidden');
+          link.removeAttribute('href');
+          return;
+        }
+        link.href = `${match[1]}/download`;
+        link.classList.remove('hidden');
+      };
+      new MutationObserver(syncDownloadLink).observe(video, { attributes: true, attributeFilter: ['src'] });
+      syncDownloadLink();
+    });
+  </script>
 </body>
 </html>
