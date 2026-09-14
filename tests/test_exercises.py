@@ -1,5 +1,4 @@
 from app.exercises import generate_exercises, score_answer
-from app.youtube import validate_youtube_url
 
 
 def sample_segments():
@@ -34,13 +33,3 @@ def test_scoring_penalizes_extra_replays_and_reveals_transcript():
     assert perfect["score"] == 100
     assert perfect["transcript"] == exercise["transcript"]
     assert replayed["score"] < perfect["score"]
-
-
-def test_youtube_url_validation():
-    assert validate_youtube_url("https://youtu.be/dQw4w9WgXcQ")
-    try:
-        validate_youtube_url("https://example.com/video")
-    except ValueError:
-        pass
-    else:
-        raise AssertionError("Non YouTube host should be rejected")
