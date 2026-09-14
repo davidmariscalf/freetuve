@@ -1,21 +1,79 @@
+import asyncio
 import shutil
+import threading
+import time
+from collections import defaultdict, deque
+from contextlib import asynccontextmanager, suppress
 from copy import deepcopy
 from pathlib import Path
 from uuid import uuid4
 
-from fastapi import BackgroundTasks, FastAPI, HTTPException
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from .config import (
+    CLEANUP_INTERVAL_SECONDS,
+    CREATE_LIMIT_PER_HOUR,
+    LESSON_TTL_HOURS,
+    MAX_VIDEO_DURATION_SECONDS,
+)
 from .exercises import score_answer
 from .models import AttemptRequest, LessonCreate
+from .offline import build_offline_pack, offline_clip_path
 from .service import process_lesson
-from .storage import create_pending_lesson, ensure_data_dirs, lesson_dir, load_lesson, save_lesson
+from .storage import (
+    cleanup_expired_lessons,
+    create_pending_lesson,
+    delete_lesson,
+    ensure_data_dirs,
+    lesson_dir,
+    load_lesson,
+    save_lesson,
+)
 from .transcription import transcription_available
 from .youtube import validate_youtube_url
 
 
-app = FastAPI(title="FreeTuve", version="0.2.0")
+_CREATE_EVENTS: dict[str, deque[float]] = defaultdict(deque)
+_RATE_LOCK = threading.Lock()
+
+
+def _check_create_limit(client: str) -> None:
+    now = time.monotonic()
+    cutoff = now - 3600
+    with _RATE_LOCK:
+        bucket = _CREATE_EVENTS[client]
+        while bucket and bucket[0] < cutoff:
+            bucket.popleft()
+        if len(bucket) >= CREATE_LIMIT_PER_HOUR:
+            raise HTTPException(
+                status_code=429,
+                detail="Has creado demasiadas lecciones en la última hora. Inténtalo más tarde.",
+            )
+        bucket.append(now)
+
+
+async def _cleanup_loop() -> None:
+    while True:
+        await asyncio.sleep(CLEANUP_INTERVAL_SECONDS)
+        await asyncio.to_thread(cleanup_expired_lessons, LESSON_TTL_HOURS)
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    ensure_data_dirs()
+    await asyncio.to_thread(cleanup_expired_lessons, LESSON_TTL_HOURS)
+    task = asyncio.create_task(_cleanup_loop())
+    try:
+        yield
+    finally:
+        task.cancel()
+        with suppress(asyncio.CancelledError):
+            await task
+
+
+app = FastAPI(title="FreeTuve", version="1.0.0", lifespan=lifespan)
 ensure_data_dirs()
 
 
@@ -45,6 +103,7 @@ def _public_lesson(lesson: dict) -> dict:
     result.pop("attempts", None)
     if isinstance(result.get("transcription"), dict):
         result["transcription"].pop("caption_path", None)
+    result["retention_hours"] = LESSON_TTL_HOURS
     if result.get("status") == "ready":
         result["media_url"] = f"/api/lessons/{lesson['id']}/media"
         result["progress"] = _progress(lesson)
@@ -58,15 +117,20 @@ def _public_lesson(lesson: dict) -> dict:
 def health() -> dict:
     return {
         "ok": True,
+        "version": "1.0.0",
         "ffmpeg": bool(shutil.which("ffmpeg")),
         "local_transcription": transcription_available(),
+        "lesson_ttl_hours": LESSON_TTL_HOURS,
+        "max_video_minutes": MAX_VIDEO_DURATION_SECONDS // 60,
     }
 
 
 @app.post("/api/lessons", status_code=202)
-def create_lesson(payload: LessonCreate, background_tasks: BackgroundTasks) -> dict:
+def create_lesson(payload: LessonCreate, background_tasks: BackgroundTasks, request: Request) -> dict:
     if not shutil.which("ffmpeg"):
         raise HTTPException(status_code=503, detail="FFmpeg no está instalado en el servidor")
+    client = request.client.host if request.client else "unknown"
+    _check_create_limit(client)
     try:
         source_url = validate_youtube_url(str(payload.url))
     except ValueError as exc:
@@ -81,12 +145,23 @@ def create_lesson(payload: LessonCreate, background_tasks: BackgroundTasks) -> d
         max_items=payload.max_items,
     )
     background_tasks.add_task(process_lesson, lesson_id)
-    return {"id": lesson_id, "status": "pending"}
+    return {"id": lesson_id, "status": "pending", "retention_hours": LESSON_TTL_HOURS}
 
 
 @app.get("/api/lessons/{lesson_id}")
 def get_lesson(lesson_id: str) -> dict:
     return _public_lesson(_load_or_404(lesson_id))
+
+
+@app.delete("/api/lessons/{lesson_id}", status_code=204)
+def remove_lesson(lesson_id: str):
+    try:
+        removed = delete_lesson(lesson_id)
+    except ValueError:
+        removed = False
+    if not removed:
+        raise HTTPException(status_code=404, detail="Lección no encontrada")
+    return None
 
 
 @app.get("/api/lessons/{lesson_id}/media")
@@ -100,7 +175,32 @@ def get_media(lesson_id: str):
         raise HTTPException(status_code=403, detail="Ruta de vídeo no válida")
     if not path.exists() or not path.is_file():
         raise HTTPException(status_code=404, detail="El vídeo ya no está disponible")
-    return FileResponse(path)
+    return FileResponse(path, headers={"Cache-Control": "private, max-age=3600"})
+
+
+@app.post("/api/lessons/{lesson_id}/offline-pack")
+def create_offline_pack(lesson_id: str) -> dict:
+    lesson = _load_or_404(lesson_id)
+    try:
+        return build_offline_pack(lesson)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@app.get("/api/lessons/{lesson_id}/offline/{filename}")
+def get_offline_clip(lesson_id: str, filename: str):
+    _load_or_404(lesson_id)
+    try:
+        path = offline_clip_path(lesson_id, filename)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not path.exists() or not path.is_file():
+        raise HTTPException(status_code=404, detail="Fragmento offline no encontrado")
+    return FileResponse(
+        path,
+        media_type="audio/mp4",
+        headers={"Cache-Control": "private, max-age=86400"},
+    )
 
 
 @app.post("/api/lessons/{lesson_id}/attempts")
