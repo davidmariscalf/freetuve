@@ -36,11 +36,12 @@ input, select, textarea {
   width: 100%; border: 1px solid var(--line); background: #0f131b; color: var(--text); border-radius: 12px; padding: 12px 14px; outline: none;
 }
 input:focus, select:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(139,124,255,.12); }
+.source-hint { color: var(--muted); font-size: .82rem; line-height: 1.5; margin: 8px 0 0; }
 .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 16px 0; }
 .primary, .secondary, .ghost { border-radius: 12px; padding: 12px 16px; font-weight: 700; }
 .primary { border: 0; background: var(--accent); color: white; }
 .primary:hover { filter: brightness(1.08); }
-.secondary { background: var(--panel-2); color: var(--text); border: 1px solid var(--line); }
+.secondary { background: var(--panel-2); color: var(--text); border: 1px solid var(--line); text-decoration: none; }
 .secondary:hover { border-color: #48536a; }
 .ghost { background: transparent; color: var(--muted); border: 1px solid transparent; }
 .ghost:hover { color: var(--text); border-color: var(--line); }
@@ -53,6 +54,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); box-sha
 .video-meta { align-items: flex-start; }
 .video-meta h2, .section-heading h2 { margin: 4px 0 12px; font-size: 1.2rem; }
 .lesson-actions { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: flex-end; gap: 8px; }
+.lesson-actions > a { display: inline-flex; align-items: center; justify-content: center; }
 .speed-control { min-width: 112px; }
 video, audio { width: 100%; border-radius: 16px; background: #000; display: block; }
 video { max-height: 560px; }
@@ -91,6 +93,6 @@ textarea { min-height: 110px; resize: vertical; margin-top: 10px; }
   .choice-grid { grid-template-columns: 1fr; }
   .hero h1 { font-size: 3rem; }
   .lesson-actions, .saved-actions { justify-content: stretch; }
-  .lesson-actions > button, .saved-actions > button { flex: 1; }
+  .lesson-actions > button, .lesson-actions > a, .saved-actions > button { flex: 1; }
   .speed-control { width: 100%; }
 }
