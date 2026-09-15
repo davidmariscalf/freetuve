@@ -35,6 +35,7 @@ from .storage import (
     ensure_data_dirs,
     lesson_dir,
     load_lesson,
+    recoverable_lesson_ids,
     save_lesson,
 )
 from .transcription import transcription_available
@@ -43,6 +44,7 @@ from .youtube import validate_source_url
 
 _CREATE_EVENTS: dict[str, deque[float]] = defaultdict(deque)
 _RATE_LOCK = threading.Lock()
+_RECOVERY_TASKS: set[asyncio.Task] = set()
 
 
 def _client_rate_key(request: Request) -> str:
@@ -79,17 +81,38 @@ async def _cleanup_loop() -> None:
         await asyncio.to_thread(cleanup_expired_lessons, LESSON_TTL_HOURS)
 
 
+def _track_recovery_task(task: asyncio.Task) -> None:
+    _RECOVERY_TASKS.add(task)
+    task.add_done_callback(_RECOVERY_TASKS.discard)
+
+
+def _resume_interrupted_lessons() -> int:
+    lesson_ids = recoverable_lesson_ids()
+    for lesson_id in lesson_ids:
+        task = asyncio.create_task(
+            asyncio.to_thread(process_lesson, lesson_id),
+            name=f"recover-lesson-{lesson_id}",
+        )
+        _track_recovery_task(task)
+    return len(lesson_ids)
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     ensure_data_dirs()
     await asyncio.to_thread(cleanup_expired_lessons, LESSON_TTL_HOURS)
-    task = asyncio.create_task(_cleanup_loop())
+    _resume_interrupted_lessons()
+    cleanup_task = asyncio.create_task(_cleanup_loop())
     try:
         yield
     finally:
-        task.cancel()
+        cleanup_task.cancel()
         with suppress(asyncio.CancelledError):
-            await task
+            await cleanup_task
+        for task in list(_RECOVERY_TASKS):
+            task.cancel()
+        if _RECOVERY_TASKS:
+            await asyncio.gather(*list(_RECOVERY_TASKS), return_exceptions=True)
 
 
 app = FastAPI(title="FreeTuve", version=APP_VERSION, lifespan=lifespan)
@@ -170,6 +193,8 @@ def health() -> dict:
         "max_video_minutes": MAX_VIDEO_DURATION_SECONDS // 60,
         "multiplatform": True,
         "generic_extractor": ALLOW_GENERIC_EXTRACTOR,
+        "crash_recovery": True,
+        "recovering_lessons": len(_RECOVERY_TASKS),
     }
 
 
