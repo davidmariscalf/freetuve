@@ -1,9 +1,10 @@
-const SHELL_CACHE = 'freetuve-shell-v5';
+const SHELL_CACHE = 'freetuve-shell-v6';
 const OFFLINE_CACHE = 'freetuve-offline-lessons-v1';
 const SHELL_ASSETS = [
   '/',
   '/styles.css?v=3',
   '/app.js?v=5',
+  '/recovery.js?v=1',
   '/manifest.webmanifest',
   '/icon.svg',
   '/icon-192.png',
