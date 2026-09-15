@@ -1,21 +1,115 @@
 // FreeTuve resilience layer.
 //
-// Railway can restart the backend after a transient OOM or process failure.
-// The lesson metadata is recovered server-side; this polling override keeps the
-// browser attached to the same lesson while the backend comes back online.
+// Railway can restart the backend after an OOM or process failure. Normal
+// process restarts can resume persisted pending/processing lessons server-side.
+// If a replacement container loses ephemeral lesson state, the browser keeps
+// the original creation request and recreates that lesson automatically.
 
-window.pollLesson = async function pollLessonWithRecovery(id) {
+const PENDING_PREFIX = 'freetuve.pending.v1.';
+const originalRequest = window.request.bind(window);
+
+function pendingKey(id) {
+  return `${PENDING_PREFIX}${id}`;
+}
+
+function readPendingRequest(id) {
+  try {
+    const value = JSON.parse(localStorage.getItem(pendingKey(id)) || 'null');
+    return value?.request && typeof value.request === 'object' ? value.request : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function rememberPendingRequest(id, requestBody) {
+  try {
+    localStorage.setItem(pendingKey(id), JSON.stringify({
+      request: requestBody,
+      created_at: new Date().toISOString(),
+    }));
+  } catch (_) {
+    // Storage can be disabled; server-side recovery still remains available.
+  }
+}
+
+function forgetPendingRequest(id) {
+  try { localStorage.removeItem(pendingKey(id)); } catch (_) {}
+}
+
+// Preserve HTTP status information that the original request helper intentionally
+// hides. The rest of app.js keeps using the same request API.
+window.request = async function resilientRequest(url, options = {}) {
+  const headers = { ...(options.headers || {}) };
+  if (options.body != null && !headers['Content-Type'] && !headers['content-type']) {
+    headers['Content-Type'] = 'application/json';
+  }
+
+  let response;
+  try {
+    response = await fetch(window.apiUrl(url), { ...options, headers });
+  } catch (_) {
+    const error = new Error('No se pudo conectar con el servidor. Comprueba tu conexión y vuelve a intentarlo.');
+    error.transient = true;
+    throw error;
+  }
+
+  let payload = null;
+  if (response.status !== 204) {
+    try { payload = await response.json(); } catch (_) { payload = {}; }
+  }
+  if (!response.ok) {
+    const error = new Error(payload?.detail || payload?.error || 'Ha ocurrido un error inesperado.');
+    error.status = response.status;
+    error.transient = response.status >= 500 || response.status === 408;
+    throw error;
+  }
+
+  if (url === '/api/lessons' && String(options.method || 'GET').toUpperCase() === 'POST' && payload?.id) {
+    try {
+      const requestBody = typeof options.body === 'string' ? JSON.parse(options.body) : options.body;
+      if (requestBody && typeof requestBody === 'object') rememberPendingRequest(payload.id, requestBody);
+    } catch (_) {}
+  }
+
+  return payload;
+};
+
+window.pollLesson = async function pollLessonWithRecovery(initialId) {
   const maxPollAttempts = 1200;
   const retryDelayMs = 1500;
   const maxConsecutiveTransportFailures = 40; // ~60 seconds of restart grace.
+  const maxRecreations = 2;
+  let currentId = initialId;
   let consecutiveTransportFailures = 0;
+  let recreations = 0;
 
   for (let attempt = 0; attempt < maxPollAttempts; attempt += 1) {
     let data;
     try {
-      data = await window.request(`/api/lessons/${id}`);
+      data = await window.request(`/api/lessons/${currentId}`);
       consecutiveTransportFailures = 0;
     } catch (error) {
+      // A fresh container may legitimately return 404 because Railway's
+      // ephemeral filesystem was replaced. Recreate the same request rather
+      // than making the user start over manually.
+      if (error.status === 404 && recreations < maxRecreations) {
+        const originalPayload = readPendingRequest(currentId);
+        if (originalPayload) {
+          window.setStatus('El servidor se reinició. Recuperando la lección automáticamente…');
+          const previousId = currentId;
+          const recreated = await window.request('/api/lessons', {
+            method: 'POST',
+            body: JSON.stringify(originalPayload),
+          });
+          currentId = recreated.id;
+          recreations += 1;
+          forgetPendingRequest(previousId);
+          await window.sleep(retryDelayMs);
+          continue;
+        }
+      }
+
+      if (!error.transient) throw error;
       consecutiveTransportFailures += 1;
       if (consecutiveTransportFailures >= maxConsecutiveTransportFailures) {
         throw new Error(
@@ -27,8 +121,14 @@ window.pollLesson = async function pollLessonWithRecovery(id) {
       continue;
     }
 
-    if (data.status === 'ready') return window.normalizeLesson(data);
+    if (data.status === 'ready') {
+      forgetPendingRequest(currentId);
+      if (currentId !== initialId) forgetPendingRequest(initialId);
+      return window.normalizeLesson(data);
+    }
     if (data.status === 'error') {
+      forgetPendingRequest(currentId);
+      if (currentId !== initialId) forgetPendingRequest(initialId);
       throw new Error(data.error || 'No se pudo crear la lección.');
     }
 
@@ -42,3 +142,6 @@ window.pollLesson = async function pollLessonWithRecovery(id) {
 
   throw new Error('El procesamiento está tardando demasiado. Prueba con un vídeo más corto.');
 };
+
+// Keep the old helper reachable for debugging without using it in normal flow.
+window.freetuveOriginalRequest = originalRequest;
