@@ -32,7 +32,22 @@ def test_keeps_same_sentence_despite_minor_tokenization_difference():
 
     assert len(verified) == 1
     assert verified[0]["text"] == "I need to use the restroom real quick."
-    assert verified[0]["verification_similarity"] >= 0.68
+    assert verified[0]["verification_similarity"] >= 0.80
+
+
+def test_rejects_caption_that_omits_multiple_asr_words():
+    source = [{
+        "start": 0.0,
+        "end": 3.0,
+        "text": "We need finish this project today.",
+    }]
+    asr = [{
+        "start": 0.1,
+        "end": 2.9,
+        "text": "We absolutely need to finish this project today.",
+    }]
+
+    assert verify_segments(source, asr) == []
 
 
 def test_does_not_verify_unaligned_segments():
