@@ -20,6 +20,18 @@ from .config import (
 MEDIA_SUFFIXES = {".mp4", ".webm", ".mkv", ".mov"}
 _BLOCKED_HOST_SUFFIXES = (".local", ".localhost", ".internal", ".home", ".lan")
 _BLOCKED_HOSTS = {"localhost", "localhost.localdomain"}
+_YOUTUBE_HOSTS = {
+    "youtube.com",
+    "www.youtube.com",
+    "m.youtube.com",
+    "music.youtube.com",
+    "youtu.be",
+}
+# YouTube can reject one Innertube client before a PO token can even be minted.
+# Try clients independently so one LOGIN_REQUIRED response does not abort the
+# whole request. The order favors clients that currently need no GVS token,
+# with mweb + our PO-token provider as an additional path.
+_YOUTUBE_CLIENTS = ("web_embedded", "android_vr", "tv", "mweb", "web_safari")
 
 
 def _resolve_public_host(host: str, port: int = 443) -> None:
@@ -64,6 +76,11 @@ def validate_youtube_url(url: str) -> str:
     return validate_source_url(url)
 
 
+def _is_youtube_url(url: str) -> bool:
+    host = (urlparse(url).hostname or "").casefold().rstrip(".")
+    return host in _YOUTUBE_HOSTS or host.endswith(".youtube.com")
+
+
 def _allowed_extractors() -> list[str]:
     # The generic extractor is useful for self-hosted/trusted deployments, but on a
     # public server it would turn arbitrary URLs into outbound fetches. Built-in
@@ -71,27 +88,29 @@ def _allowed_extractors() -> list[str]:
     return ["default"] if ALLOW_GENERIC_EXTRACTOR else ["default", "-generic"]
 
 
-def _yt_dlp_runtime_options() -> dict:
+def _yt_dlp_runtime_options(player_client: str | None = None) -> dict:
     options: dict = {}
     node_path = shutil.which("node")
     if node_path:
         options["js_runtimes"] = {"node": {"path": node_path}}
 
+    extractor_args: dict[str, dict[str, list[str]]] = {}
+    if player_client:
+        extractor_args["youtube"] = {"player_client": [player_client]}
     if POT_PROVIDER_URL:
-        options["extractor_args"] = {
-            "youtube": {"player_client": ["mweb", "web_embedded"]},
-            "youtubepot-bgutilhttp": {"base_url": [POT_PROVIDER_URL]},
-        }
+        extractor_args["youtubepot-bgutilhttp"] = {"base_url": [POT_PROVIDER_URL]}
+    if extractor_args:
+        options["extractor_args"] = extractor_args
     return options
 
 
 def _friendly_download_error(exc: DownloadError, *, downloading: bool) -> str:
     message = str(exc).replace("’", "'").casefold()
-    if "confirm you're not a bot" in message:
+    if "confirm you're not a bot" in message or "login_required" in message:
         if POT_PROVIDER_URL:
             return (
-                "YouTube sigue rechazando temporalmente las conexiones del servidor. "
-                "No es un problema con tu enlace; prueba de nuevo más tarde o usa otro vídeo."
+                "YouTube está rechazando temporalmente esta ruta de conexión del servidor. "
+                "FreeTuve probará automáticamente rutas alternativas cuando estén disponibles."
             )
         return (
             "YouTube está bloqueando temporalmente las conexiones del servidor. "
@@ -122,22 +141,7 @@ def _pick_caption(directory: Path, language: str) -> Path | None:
     return (preferred or candidates)[0]
 
 
-def _preflight(url: str) -> dict:
-    options = {
-        "quiet": True,
-        "no_warnings": True,
-        "noplaylist": True,
-        "skip_download": True,
-        "socket_timeout": 30,
-        "allowed_extractors": _allowed_extractors(),
-        **_yt_dlp_runtime_options(),
-    }
-    try:
-        with YoutubeDL(options) as ydl:
-            info = ydl.extract_info(url, download=False)
-    except DownloadError as exc:
-        raise RuntimeError(_friendly_download_error(exc, downloading=False)) from exc
-
+def _validate_preflight_info(info: dict | None) -> dict:
     if not info:
         raise RuntimeError("La plataforma no devolvió información de vídeo utilizable.")
     if info.get("_type") in {"playlist", "multi_video"}:
@@ -150,6 +154,55 @@ def _preflight(url: str) -> dict:
         minutes = MAX_VIDEO_DURATION_SECONDS // 60
         raise RuntimeError(f"El vídeo es demasiado largo. El máximo configurado es de {minutes} minutos.")
     return info
+
+
+def _preflight_once(url: str, player_client: str | None = None) -> dict:
+    options = {
+        "quiet": True,
+        "no_warnings": True,
+        "noplaylist": True,
+        "skip_download": True,
+        "socket_timeout": 30,
+        "allowed_extractors": _allowed_extractors(),
+        "extractor_retries": 2,
+        **_yt_dlp_runtime_options(player_client),
+    }
+    try:
+        with YoutubeDL(options) as ydl:
+            info = ydl.extract_info(url, download=False)
+    except DownloadError as exc:
+        raise RuntimeError(_friendly_download_error(exc, downloading=False)) from exc
+    return _validate_preflight_info(info)
+
+
+def _youtube_client_candidates(preferred: str | None = None) -> tuple[str, ...]:
+    if preferred not in _YOUTUBE_CLIENTS:
+        return _YOUTUBE_CLIENTS
+    return (preferred, *tuple(client for client in _YOUTUBE_CLIENTS if client != preferred))
+
+
+def _preflight(url: str) -> dict:
+    if not _is_youtube_url(url):
+        return _preflight_once(url)
+
+    errors: list[str] = []
+    for client in _YOUTUBE_CLIENTS:
+        try:
+            info = _preflight_once(url, client)
+            info["_freetuve_player_client"] = client
+            return info
+        except RuntimeError as exc:
+            errors.append(str(exc))
+
+    # Every supported YouTube client failed. Keep the message actionable but do
+    # not imply the URL itself is broken when the common cause is IP reputation.
+    if any("YouTube" in error for error in errors):
+        raise RuntimeError(
+            "YouTube ha rechazado todas las rutas de reproducción disponibles desde el servidor. "
+            "FreeTuve ya probó varios clientes y el proveedor de tokens automáticamente; "
+            "el bloqueo depende de YouTube y de la IP del servidor."
+        )
+    raise RuntimeError(errors[-1] if errors else "No se pudo abrir el vídeo de YouTube.")
 
 
 def _safe_webpage_url(info: dict, fallback: str) -> str:
@@ -169,43 +222,112 @@ def _platform_name(info: dict, url: str) -> str:
     return (urlparse(url).hostname or "web").removeprefix("www.")
 
 
-def download_media_and_captions(url: str, directory: Path, language: str) -> dict:
-    validate_source_url(url)
-    directory.mkdir(parents=True, exist_ok=True)
-    preflight = _preflight(url)
+def _clear_video_outputs(directory: Path) -> None:
+    for path in directory.glob("video.*"):
+        if path.is_file():
+            path.unlink(missing_ok=True)
 
-    options = {
+
+def _download_options(directory: Path, player_client: str | None = None) -> dict:
+    return {
+        # Prefer a single <=720p stream because it is less fragile across the
+        # current YouTube clients. Fall back to merged video+audio where needed.
         "format": (
-            "bv*[height<=720][vcodec^=avc1]+ba[acodec^=mp4a]/"
-            "b[height<=720][ext=mp4]/bv*[height<=720]+ba/b"
+            "b[height<=720][ext=mp4]/b[height<=720]/18/"
+            "bv*[height<=720]+ba/bv*+ba/b"
         ),
         "outtmpl": str(directory / "video.%(ext)s"),
         "noplaylist": True,
-        "writesubtitles": True,
-        "writeautomaticsub": True,
-        # Ask only for the selected language. A wildcard such as en.* can match
-        # dozens of translated auto-captions and trigger YouTube rate limits.
-        "subtitleslangs": [language],
-        "subtitlesformat": "vtt",
+        # Captions are fetched separately as best-effort evidence. A subtitle
+        # endpoint failure must not throw away an otherwise usable video.
+        "writesubtitles": False,
+        "writeautomaticsub": False,
         "merge_output_format": "mp4",
         "restrictfilenames": True,
         "quiet": True,
         "no_warnings": True,
         "overwrites": True,
-        "concurrent_fragment_downloads": 4,
+        "concurrent_fragment_downloads": 2,
         "socket_timeout": 30,
         "max_filesize": MAX_MEDIA_BYTES,
         "allowed_extractors": _allowed_extractors(),
-        "retries": 3,
-        "fragment_retries": 3,
-        **_yt_dlp_runtime_options(),
+        "retries": 4,
+        "fragment_retries": 4,
+        "extractor_retries": 2,
+        **_yt_dlp_runtime_options(player_client),
     }
 
+
+def _download_once(url: str, directory: Path, player_client: str | None = None) -> dict:
     try:
-        with YoutubeDL(options) as ydl:
+        with YoutubeDL(_download_options(directory, player_client)) as ydl:
             info = ydl.extract_info(url, download=True)
     except DownloadError as exc:
         raise RuntimeError(_friendly_download_error(exc, downloading=True)) from exc
+    return info or {}
+
+
+def _download_caption_best_effort(
+    url: str,
+    directory: Path,
+    language: str,
+    player_client: str | None,
+) -> Path | None:
+    clients: tuple[str | None, ...]
+    if _is_youtube_url(url):
+        clients = _youtube_client_candidates(player_client)
+    else:
+        clients = (None,)
+
+    for client in clients:
+        options = {
+            "outtmpl": str(directory / "video.%(ext)s"),
+            "noplaylist": True,
+            "skip_download": True,
+            "writesubtitles": True,
+            "writeautomaticsub": True,
+            "subtitleslangs": [language],
+            "subtitlesformat": "vtt",
+            "quiet": True,
+            "no_warnings": True,
+            "socket_timeout": 20,
+            "allowed_extractors": _allowed_extractors(),
+            "extractor_retries": 1,
+            **_yt_dlp_runtime_options(client),
+        }
+        try:
+            with YoutubeDL(options) as ydl:
+                ydl.extract_info(url, download=True)
+        except DownloadError:
+            continue
+        caption = _pick_caption(directory, language)
+        if caption:
+            return caption
+    return _pick_caption(directory, language)
+
+
+def download_media_and_captions(url: str, directory: Path, language: str) -> dict:
+    validate_source_url(url)
+    directory.mkdir(parents=True, exist_ok=True)
+    preflight = _preflight(url)
+    preferred_client = preflight.get("_freetuve_player_client")
+
+    if _is_youtube_url(url):
+        clients: tuple[str | None, ...] = _youtube_client_candidates(preferred_client)
+    else:
+        clients = (None,)
+
+    info: dict = {}
+    last_error: RuntimeError | None = None
+    successful_client: str | None = None
+    for client in clients:
+        _clear_video_outputs(directory)
+        try:
+            info = _download_once(url, directory, client)
+            successful_client = client
+            break
+        except RuntimeError as exc:
+            last_error = exc
 
     media_files = sorted(
         (
@@ -217,6 +339,8 @@ def download_media_and_captions(url: str, directory: Path, language: str) -> dic
         reverse=True,
     )
     if not media_files:
+        if last_error is not None:
+            raise last_error
         max_mb = MAX_MEDIA_BYTES // (1024 * 1024)
         raise RuntimeError(
             f"No se pudo obtener un vídeo reproducible. Puede superar el límite de {max_mb} MB o no estar disponible."
@@ -229,7 +353,12 @@ def download_media_and_captions(url: str, directory: Path, language: str) -> dic
         max_mb = MAX_MEDIA_BYTES // (1024 * 1024)
         raise RuntimeError(f"El vídeo supera el límite configurado de {max_mb} MB.")
 
-    caption = _pick_caption(directory, language)
+    caption = _download_caption_best_effort(
+        url,
+        directory,
+        language,
+        successful_client,
+    )
     merged_info = info or preflight
     return {
         "title": merged_info.get("title") or preflight.get("title") or "Lección sin título",
@@ -240,6 +369,7 @@ def download_media_and_captions(url: str, directory: Path, language: str) -> dic
         "platform": _platform_name(merged_info, url),
         "media_path": str(media_path.resolve()),
         "caption_path": str(caption.resolve()) if caption else None,
+        "player_client": successful_client,
     }
 
 
