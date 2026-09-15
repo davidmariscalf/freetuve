@@ -1,4 +1,6 @@
 yt-dlp @ git+https://github.com/yt-dlp/yt-dlp.git@bbc809a1161d3bfca51fa36f59dda35556ee85a0
+yt-dlp-ejs==0.8.0
+bgutil-ytdlp-pot-provider==2.0.0
 faster-whisper @ git+https://github.com/SYSTRAN/faster-whisper.git@ed9a06cd89a93e47838f564998a6c09b655d7f43
 fastapi>=0.115,<1
 uvicorn[standard]>=0.30,<1
