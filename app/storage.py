@@ -88,6 +88,34 @@ def delete_lesson(lesson_id: str) -> bool:
     return True
 
 
+def recoverable_lesson_ids() -> list[str]:
+    """Return lessons that were interrupted before reaching a terminal state.
+
+    Runtime crashes can kill a FastAPI background task after the lesson was
+    persisted as ``pending`` or ``processing``. The metadata survives a process
+    restart inside the same Railway deployment, so startup can safely requeue
+    these lessons instead of leaving the browser polling forever.
+    """
+    ensure_data_dirs()
+    recoverable: list[str] = []
+    for directory in LESSONS_ROOT.iterdir():
+        if not directory.is_dir():
+            continue
+        metadata = directory / "lesson.json"
+        if not metadata.exists():
+            continue
+        try:
+            data = json.loads(metadata.read_text(encoding="utf-8"))
+            lesson_id = _safe_lesson_id(str(data.get("id") or directory.name))
+        except (OSError, ValueError, TypeError, json.JSONDecodeError):
+            continue
+        if _deletion_marker(lesson_id).exists():
+            continue
+        if data.get("status") in {"pending", "processing"}:
+            recoverable.append(lesson_id)
+    return sorted(set(recoverable))
+
+
 def cleanup_expired_lessons(ttl_hours: int) -> int:
     ensure_data_dirs()
     cutoff = _now() - timedelta(hours=max(1, ttl_hours))
