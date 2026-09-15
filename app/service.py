@@ -53,10 +53,10 @@ def process_lesson(lesson_id: str) -> None:
         else:
             segments = asr_segments
 
-        if len(segments) < 5:
+        if not segments:
             raise RuntimeError(
-                "No se detectaron suficientes frases cuya transcripción pudiera verificarse con confianza. "
-                "Prueba con un vídeo con voz más clara o con mejores subtítulos."
+                "No se detectó ninguna frase cuya transcripción pudiera verificarse con suficiente confianza. "
+                "Prueba con un vídeo con voz más clara o mejores subtítulos."
             )
 
         exercises = generate_exercises(
@@ -64,8 +64,8 @@ def process_lesson(lesson_id: str) -> None:
             lesson["difficulty"],
             lesson["max_items"],
         )
-        if len(exercises) < 5:
-            raise RuntimeError("No se pudieron generar suficientes ejercicios de calidad.")
+        if not exercises:
+            raise RuntimeError("No se pudo generar ningún ejercicio de calidad a partir de este vídeo.")
 
         transcription = {
             key: value
