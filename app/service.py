@@ -1,11 +1,15 @@
+import threading
 from pathlib import Path
 
 from .exercises import generate_exercises
 from .fidelity import verify_segments
 from .storage import lesson_dir, load_lesson, save_lesson
-from .transcription import transcribe_media_to_vtt
+from .transcription import release_transcription_model, transcribe_media_to_vtt
 from .vtt import build_segments, parse_vtt
 from .youtube import download_media_and_captions
+
+
+_PROCESSING_LOCK = threading.Lock()
 
 
 def _segments_from_vtt(path: str | Path) -> list[dict]:
@@ -13,9 +17,11 @@ def _segments_from_vtt(path: str | Path) -> list[dict]:
     return build_segments(parse_vtt(text))
 
 
-def process_lesson(lesson_id: str) -> None:
+def _process_lesson_locked(lesson_id: str) -> None:
     try:
         lesson = load_lesson(lesson_id)
+        if lesson.get("status") == "ready":
+            return
         lesson["status"] = "processing"
         lesson.pop("error", None)
         save_lesson(lesson)
@@ -108,3 +114,16 @@ def process_lesson(lesson_id: str) -> None:
             save_lesson(lesson)
         except FileNotFoundError:
             return
+
+
+def process_lesson(lesson_id: str) -> None:
+    # A single heavy worker is deliberate. The Railway backend currently has a
+    # 1 GB memory cap; overlapping yt-dlp/FFmpeg/Whisper jobs can cross that
+    # limit even though each individual lesson fits comfortably.
+    with _PROCESSING_LOCK:
+        try:
+            _process_lesson_locked(lesson_id)
+        finally:
+            # Do not keep the Whisper model resident between jobs. This restores
+            # memory headroom for the web server and the next download.
+            release_transcription_model()
