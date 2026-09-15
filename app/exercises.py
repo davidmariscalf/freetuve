@@ -77,15 +77,19 @@ def generate_exercises(segments: list[dict], difficulty: str, max_items: int) ->
     corpus = [m.group(0) for segment in segments for m in _word_matches(segment["text"])]
     exercises: list[dict] = []
 
-    for index, segment in enumerate(segments[:max_items]):
+    for segment_index, segment in enumerate(segments):
+        if len(exercises) >= max_items:
+            break
         text = segment["text"]
         candidates = _candidate_indices(text)
         if not candidates:
             continue
-        rng = random.Random(f"{difficulty}|{index}|{text}")
-        kind = _kind_for(index, difficulty)
+
+        exercise_index = len(exercises)
+        rng = random.Random(f"{difficulty}|{segment_index}|{text}")
+        kind = _kind_for(exercise_index, difficulty)
         exercise = {
-            "id": f"ex-{index + 1}",
+            "id": f"ex-{exercise_index + 1}",
             "start": segment["start"],
             "end": segment["end"],
             "type": kind,
