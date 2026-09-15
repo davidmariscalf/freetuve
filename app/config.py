@@ -1,6 +1,6 @@
 import os
 
-APP_VERSION = "1.2.0"
+APP_VERSION = "1.2.1"
 
 
 def _int_env(name: str, default: int, minimum: int, maximum: int) -> int:
