@@ -183,7 +183,9 @@ def download_media_and_captions(url: str, directory: Path, language: str) -> dic
         "noplaylist": True,
         "writesubtitles": True,
         "writeautomaticsub": True,
-        "subtitleslangs": [language, f"{language}.*"],
+        # Ask only for the selected language. A wildcard such as en.* can match
+        # dozens of translated auto-captions and trigger YouTube rate limits.
+        "subtitleslangs": [language],
         "subtitlesformat": "vtt",
         "merge_output_format": "mp4",
         "restrictfilenames": True,
