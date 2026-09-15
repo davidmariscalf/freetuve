@@ -63,6 +63,30 @@ def _write_vtt(cues: list[tuple[float, float, str]], output_path: Path) -> None:
     output_path.write_text("\n".join(lines), encoding="utf-8")
 
 
+def _segment_is_reliable(segment) -> bool:
+    """Reject ASR output that is too uncertain to become an exercise answer."""
+    avg_logprob = getattr(segment, "avg_logprob", None)
+    no_speech_prob = getattr(segment, "no_speech_prob", None)
+    compression_ratio = getattr(segment, "compression_ratio", None)
+
+    if avg_logprob is not None and float(avg_logprob) < -1.0:
+        return False
+    if no_speech_prob is not None and float(no_speech_prob) > 0.65:
+        return False
+    if compression_ratio is not None and float(compression_ratio) > 2.8:
+        return False
+
+    words = getattr(segment, "words", None) or []
+    probabilities = [
+        float(word.probability)
+        for word in words
+        if getattr(word, "probability", None) is not None
+    ]
+    if probabilities and sum(probabilities) / len(probabilities) < 0.55:
+        return False
+    return True
+
+
 def _collect_transcription(model, source: Path, language: str):
     segments, info = model.transcribe(
         str(source),
@@ -70,16 +94,21 @@ def _collect_transcription(model, source: Path, language: str):
         beam_size=5,
         vad_filter=True,
         condition_on_previous_text=False,
+        word_timestamps=True,
     )
     cues: list[tuple[float, float, str]] = []
+    rejected = 0
     for segment in segments:
         text = " ".join(str(segment.text).split()).strip()
         if not text:
             continue
+        if not _segment_is_reliable(segment):
+            rejected += 1
+            continue
         start = max(0.0, float(segment.start))
         end = max(start + 0.05, float(segment.end))
         cues.append((start, end, text))
-    return cues, info
+    return cues, info, rejected
 
 
 def _normalize_audio_for_whisper(media: Path, output: Path) -> None:
@@ -127,11 +156,11 @@ def transcribe_media_to_vtt(media_path: str | Path, output_path: str | Path, lan
     used_normalized_audio = False
     with _INFERENCE_LOCK:
         try:
-            cues, info = _collect_transcription(model, media, language)
-        except Exception as first_error:
+            cues, info, rejected = _collect_transcription(model, media, language)
+        except Exception:
             try:
                 _normalize_audio_for_whisper(media, normalized_audio)
-                cues, info = _collect_transcription(model, normalized_audio, language)
+                cues, info, rejected = _collect_transcription(model, normalized_audio, language)
                 used_normalized_audio = True
             except Exception as retry_error:
                 raise RuntimeError(
@@ -141,7 +170,7 @@ def transcribe_media_to_vtt(media_path: str | Path, output_path: str | Path, lan
                 normalized_audio.unlink(missing_ok=True)
 
     if not cues:
-        raise RuntimeError("La transcripción local no detectó voz utilizable en el vídeo.")
+        raise RuntimeError("La transcripción local no detectó voz utilizable con suficiente confianza.")
 
     output.parent.mkdir(parents=True, exist_ok=True)
     _write_vtt(cues, output)
@@ -152,5 +181,6 @@ def transcribe_media_to_vtt(media_path: str | Path, output_path: str | Path, lan
         "detected_language": getattr(info, "language", None),
         "language_probability": getattr(info, "language_probability", None),
         "segment_count": len(cues),
+        "rejected_segment_count": rejected,
         "audio_normalized": used_normalized_audio,
     }
