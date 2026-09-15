@@ -69,10 +69,18 @@ function sleep(ms) {
 }
 
 async function request(url, options = {}) {
-  const response = await fetch(apiUrl(url), {
-    ...options,
-    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
-  });
+  const headers = { ...(options.headers || {}) };
+  if (options.body != null && !headers['Content-Type'] && !headers['content-type']) {
+    headers['Content-Type'] = 'application/json';
+  }
+
+  let response;
+  try {
+    response = await fetch(apiUrl(url), { ...options, headers });
+  } catch (_) {
+    throw new Error('No se pudo conectar con el servidor. Comprueba tu conexión y vuelve a intentarlo.');
+  }
+
   let payload = null;
   if (response.status !== 204) {
     try { payload = await response.json(); } catch (_) { payload = {}; }
@@ -328,19 +336,23 @@ speed.addEventListener('change', () => {
   offlineAudio.playbackRate = rate;
 });
 
-async function playCurrent() {
+function recordListen() {
   listens += 1;
   listenCount.textContent = `Escuchas: ${listens} · mínimo ${current.min_listens}`;
   if (listens >= current.min_listens) {
     locked.classList.add('hidden');
     answerForm.classList.remove('hidden');
   }
+}
+
+async function playCurrent() {
   if (offlineMode) {
     offlineAudio.pause();
     offlineAudio.src = current.clip_url;
     offlineAudio.currentTime = 0;
     offlineAudio.playbackRate = Number(speed.value);
     await offlineAudio.play();
+    recordListen();
     return;
   }
   if (stopHandler) video.removeEventListener('timeupdate', stopHandler);
@@ -355,7 +367,14 @@ async function playCurrent() {
     }
   };
   video.addEventListener('timeupdate', stopHandler);
-  await video.play();
+  try {
+    await video.play();
+    recordListen();
+  } catch (error) {
+    video.removeEventListener('timeupdate', stopHandler);
+    stopHandler = null;
+    throw error;
+  }
 }
 
 listenButton.addEventListener('click', async () => {
@@ -422,6 +441,7 @@ answerForm.addEventListener('submit', async event => {
     return;
   }
   const submit = document.querySelector('#submit-answer');
+  let graded = false;
   submit.disabled = true;
   try {
     const result = offlineMode ? scoreOffline(current, answer, listens) : await request(`/api/lessons/${lesson.id}/attempts`, { method: 'POST', body: JSON.stringify({ exercise_id: current.id, answer, listens }) });
@@ -433,6 +453,7 @@ answerForm.addEventListener('submit', async event => {
       transcript.textContent = result.transcript;
     }
     answerForm.querySelectorAll('input, textarea, button').forEach(el => { el.disabled = true; });
+    graded = true;
     nextButton.classList.remove('hidden');
     if (!result.correct) {
       const retries = retryCounts.get(current.id) || 0;
@@ -446,7 +467,7 @@ answerForm.addEventListener('submit', async event => {
     feedback.className = 'feedback bad';
     feedback.textContent = error.message;
   } finally {
-    submit.disabled = false;
+    if (!graded) submit.disabled = false;
   }
 });
 
