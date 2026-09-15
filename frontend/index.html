@@ -52,8 +52,9 @@
           </label>
           <label>Número de ejercicios
             <select id="max-items" name="max_items">
+              <option value="0" selected>Automático · según el vídeo</option>
               <option value="10">10</option>
-              <option value="20" selected>20</option>
+              <option value="20">20</option>
               <option value="30">30</option>
               <option value="40">40</option>
             </select>
@@ -131,7 +132,7 @@
     </footer>
   </main>
   <script src="/config.js"></script>
-  <script src="/app.js?v=4" defer></script>
+  <script src="/app.js?v=5" defer></script>
   <script>
     window.addEventListener('DOMContentLoaded', () => {
       const video = document.querySelector('#video');
