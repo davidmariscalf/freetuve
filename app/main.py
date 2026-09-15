@@ -1,4 +1,5 @@
 import asyncio
+import ipaddress
 import re
 import shutil
 import threading
@@ -42,6 +43,19 @@ from .youtube import validate_source_url
 
 _CREATE_EVENTS: dict[str, deque[float]] = defaultdict(deque)
 _RATE_LOCK = threading.Lock()
+
+
+def _client_rate_key(request: Request) -> str:
+    # Railway's public proxy supplies X-Real-IP specifically for the original
+    # remote client. request.client can otherwise be the internal Railway proxy,
+    # which would make unrelated users share a single rate-limit bucket.
+    real_ip = request.headers.get("x-real-ip", "").strip()
+    if real_ip:
+        try:
+            return str(ipaddress.ip_address(real_ip))
+        except ValueError:
+            pass
+    return request.client.host if request.client else "unknown"
 
 
 def _check_create_limit(client: str) -> None:
@@ -163,8 +177,7 @@ def health() -> dict:
 def create_lesson(payload: LessonCreate, background_tasks: BackgroundTasks, request: Request) -> dict:
     if not shutil.which("ffmpeg"):
         raise HTTPException(status_code=503, detail="FFmpeg no está instalado en el servidor")
-    client = request.client.host if request.client else "unknown"
-    _check_create_limit(client)
+    _check_create_limit(_client_rate_key(request))
     try:
         source_url = validate_source_url(str(payload.url))
     except ValueError as exc:
