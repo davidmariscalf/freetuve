@@ -39,6 +39,14 @@ jobs:
           cat health.json
           python -c 'import json; d=json.load(open("health.json")); assert d["ok"] and d["ffmpeg"] and d["local_transcription"] and d["multiplatform"]'
           docker rm -f freetuve-ci-run
+      - name: Upload Netlify source
+        uses: actions/upload-artifact@v7
+        with:
+          name: netlify-source
+          path: |
+            netlify.toml
+            frontend
+            scripts/netlify_build.py
       - name: Upload test log
         if: always()
         uses: actions/upload-artifact@v7
