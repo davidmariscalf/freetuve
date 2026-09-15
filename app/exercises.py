@@ -12,6 +12,7 @@ STOPWORDS = {
     "some", "than", "that", "their", "them", "then", "there", "these", "they", "this", "those", "through",
     "very", "want", "were", "what", "when", "where", "which", "while", "with", "would", "your",
 }
+AUTO_MAX_ITEMS = 50
 
 
 def _normalize(value: str) -> str:
@@ -76,9 +77,10 @@ def _kind_for(index: int, difficulty: str) -> str:
 def generate_exercises(segments: list[dict], difficulty: str, max_items: int) -> list[dict]:
     corpus = [m.group(0) for segment in segments for m in _word_matches(segment["text"])]
     exercises: list[dict] = []
+    item_limit = min(len(segments), AUTO_MAX_ITEMS) if max_items <= 0 else max_items
 
     for segment_index, segment in enumerate(segments):
-        if len(exercises) >= max_items:
+        if len(exercises) >= item_limit:
             break
         text = segment["text"]
         candidates = _candidate_indices(text)
