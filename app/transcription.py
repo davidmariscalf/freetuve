@@ -1,3 +1,4 @@
+import gc
 import importlib.util
 import os
 import subprocess
@@ -41,6 +42,20 @@ def _load_model(model_name: str, device: str, compute_type: str, download_root: 
         compute_type=compute_type,
         download_root=download_root,
     )
+
+
+def release_transcription_model() -> None:
+    """Drop cached Whisper model memory once a lesson finishes.
+
+    FreeTuve currently runs with a 1 GB Railway memory limit. Keeping the model
+    resident between lessons leaves too little headroom for yt-dlp, FFmpeg and
+    request handling. Model files remain cached on disk, so a later lesson can
+    reload them without downloading them again.
+    """
+    with _MODEL_LOCK:
+        with _INFERENCE_LOCK:
+            _load_model.cache_clear()
+    gc.collect()
 
 
 def _timestamp(seconds: float) -> str:
