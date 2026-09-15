@@ -34,6 +34,23 @@ def test_skipped_segment_does_not_reduce_requested_count_when_more_are_available
     assert all(item["transcript"] != "I am." for item in exercises)
 
 
+def test_adaptive_count_uses_available_quality_segments_even_below_five():
+    segments = sample_segments()[:3]
+
+    exercises = generate_exercises(segments, "medium", 0)
+
+    assert len(exercises) == 3
+    assert [item["transcript"] for item in exercises] == [item["text"] for item in segments]
+
+
+def test_requested_count_is_a_maximum_not_a_minimum():
+    segments = sample_segments()[:2]
+
+    exercises = generate_exercises(segments, "medium", 10)
+
+    assert len(exercises) == 2
+
+
 def test_scoring_penalizes_extra_replays_and_reveals_transcript():
     exercise = {
         "type": "cloze",
