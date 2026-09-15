@@ -20,6 +20,20 @@ def test_exercises_hide_words_and_have_answers():
     assert all(item["transcript"] == sample_segments()[i]["text"] for i, item in enumerate(exercises))
 
 
+def test_skipped_segment_does_not_reduce_requested_count_when_more_are_available():
+    unusable = {"start": 0.0, "end": 1.0, "text": "I am."}
+    shifted = [
+        {"start": item["start"] + 2.0, "end": item["end"] + 2.0, "text": item["text"]}
+        for item in sample_segments()
+    ]
+
+    exercises = generate_exercises([unusable, *shifted], "medium", 5)
+
+    assert len(exercises) == 5
+    assert [item["id"] for item in exercises] == [f"ex-{index}" for index in range(1, 6)]
+    assert all(item["transcript"] != "I am." for item in exercises)
+
+
 def test_scoring_penalizes_extra_replays_and_reveals_transcript():
     exercise = {
         "type": "cloze",
