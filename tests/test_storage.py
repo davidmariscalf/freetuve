@@ -46,3 +46,21 @@ def test_delete_prevents_worker_from_recreating_lesson(tmp_path, monkeypatch):
     with pytest.raises(FileNotFoundError):
         storage.load_lesson(lesson_id)
     assert not storage.lesson_dir(lesson_id).exists()
+
+
+def test_recoverable_lessons_only_returns_interrupted_work(tmp_path, monkeypatch):
+    set_roots(tmp_path, monkeypatch)
+    pending_id = str(uuid4())
+    processing_id = str(uuid4())
+    ready_id = str(uuid4())
+    error_id = str(uuid4())
+    deleted_id = str(uuid4())
+
+    storage.save_lesson({"id": pending_id, "status": "pending"})
+    storage.save_lesson({"id": processing_id, "status": "processing"})
+    storage.save_lesson({"id": ready_id, "status": "ready"})
+    storage.save_lesson({"id": error_id, "status": "error"})
+    storage.save_lesson({"id": deleted_id, "status": "processing"})
+    assert storage.delete_lesson(deleted_id) is True
+
+    assert storage.recoverable_lesson_ids() == sorted([pending_id, processing_id])
