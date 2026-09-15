@@ -1,0 +1,43 @@
+name: live-smoke
+
+on:
+  push:
+    paths:
+      - ".github/workflows/live-smoke.yml"
+
+jobs:
+  live-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check deployed API health
+        run: curl --fail --silent --show-error https://backend-production-afa3.up.railway.app/api/health > /dev/null
+      - name: Check YouTube lesson flow
+        shell: bash
+        run: |
+          set -euo pipefail
+          response="$(curl --fail --silent --show-error \
+            -H 'Content-Type: application/json' \
+            -X POST \
+            -d '{"url":"https://www.youtube.com/watch?v=BaW_jenozKc","language":"en","difficulty":"expert","max_items":5}' \
+            https://backend-production-afa3.up.railway.app/api/lessons)"
+          lesson_id="$(printf '%s' "$response" | jq -r '.id')"
+          test -n "$lesson_id"
+          test "$lesson_id" != "null"
+
+          for _ in $(seq 1 36); do
+            lesson="$(curl --fail --silent --show-error "https://backend-production-afa3.up.railway.app/api/lessons/${lesson_id}")"
+            status="$(printf '%s' "$lesson" | jq -r '.status')"
+            if [ "$status" = "ready" ]; then
+              echo "Live YouTube lesson flow: ready"
+              curl --fail --silent --show-error -X DELETE "https://backend-production-afa3.up.railway.app/api/lessons/${lesson_id}" > /dev/null
+              exit 0
+            fi
+            if [ "$status" = "error" ]; then
+              printf 'Live YouTube lesson flow failed: %s\n' "$(printf '%s' "$lesson" | jq -r '.error // "unknown error"')"
+              exit 1
+            fi
+            sleep 5
+          done
+
+          echo "Live YouTube lesson flow timed out"
+          exit 1
