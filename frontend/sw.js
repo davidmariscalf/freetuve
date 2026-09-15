@@ -1,8 +1,8 @@
-const SHELL_CACHE = 'freetuve-shell-v2';
+const SHELL_CACHE = 'freetuve-shell-v3';
 const OFFLINE_CACHE = 'freetuve-offline-lessons-v1';
 const SHELL_ASSETS = [
   '/',
-  '/styles.css',
+  '/styles.css?v=3',
   '/app.js',
   '/manifest.webmanifest',
   '/icon.svg',
@@ -73,7 +73,8 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  if (SHELL_ASSETS.includes(url.pathname)) {
+  const cacheKey = `${url.pathname}${url.search}`;
+  if (SHELL_ASSETS.includes(cacheKey)) {
     event.respondWith(caches.match(event.request).then(cached => cached || fetch(event.request)));
   }
 });
