@@ -5,10 +5,12 @@ from app.vtt import build_segments, parse_vtt
 
 
 class FakeSegment:
-    def __init__(self, start, end, text):
+    def __init__(self, start, end, text, **confidence):
         self.start = start
         self.end = end
         self.text = text
+        for key, value in confidence.items():
+            setattr(self, key, value)
 
 
 class FakeModel:
@@ -33,6 +35,34 @@ class FlakyAudioModel(FakeModel):
         if len(self.calls) == 1:
             raise ValueError("Frame does not match AudioFifo parameters")
         return super().transcribe(media_path, **kwargs)
+
+
+class ConfidenceModel(FakeModel):
+    def transcribe(self, media_path, **kwargs):
+        good_words = [SimpleNamespace(probability=0.94), SimpleNamespace(probability=0.91)]
+        bad_words = [SimpleNamespace(probability=0.20), SimpleNamespace(probability=0.24)]
+        segments = iter([
+            FakeSegment(
+                0.0,
+                2.0,
+                "Hallucinated uncertain words.",
+                avg_logprob=-1.4,
+                no_speech_prob=0.1,
+                compression_ratio=1.0,
+                words=bad_words,
+            ),
+            FakeSegment(
+                2.1,
+                4.1,
+                "Clear spoken sentence.",
+                avg_logprob=-0.2,
+                no_speech_prob=0.02,
+                compression_ratio=1.1,
+                words=good_words,
+            ),
+        ])
+        info = SimpleNamespace(language="en", language_probability=0.99)
+        return segments, info
 
 
 def test_language_normalization():
@@ -64,6 +94,23 @@ def test_local_transcription_writes_parseable_vtt(tmp_path, monkeypatch):
     segments = build_segments(cues)
     assert len(segments) >= 4
     assert "subtitles locally" in " ".join(item["text"] for item in segments)
+
+
+def test_low_confidence_asr_segment_is_not_written(tmp_path, monkeypatch):
+    media = tmp_path / "video.mp4"
+    media.write_bytes(b"fake")
+    output = tmp_path / "generated.vtt"
+
+    monkeypatch.setattr(transcription, "transcription_available", lambda: True)
+    monkeypatch.setattr(transcription, "_load_model", lambda *args: ConfidenceModel())
+
+    result = transcription.transcribe_media_to_vtt(media, output, "en")
+    text = output.read_text(encoding="utf-8")
+
+    assert result["segment_count"] == 1
+    assert result["rejected_segment_count"] == 1
+    assert "Clear spoken sentence." in text
+    assert "Hallucinated uncertain words." not in text
 
 
 def test_transcription_retries_with_ffmpeg_normalized_audio(tmp_path, monkeypatch):
