@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ipaddress
+import shutil
 import socket
 from pathlib import Path
 from urllib.parse import urlparse
@@ -8,7 +9,12 @@ from urllib.parse import urlparse
 from yt_dlp import YoutubeDL
 from yt_dlp.utils import DownloadError
 
-from .config import ALLOW_GENERIC_EXTRACTOR, MAX_MEDIA_BYTES, MAX_VIDEO_DURATION_SECONDS
+from .config import (
+    ALLOW_GENERIC_EXTRACTOR,
+    MAX_MEDIA_BYTES,
+    MAX_VIDEO_DURATION_SECONDS,
+    POT_PROVIDER_URL,
+)
 
 
 MEDIA_SUFFIXES = {".mp4", ".webm", ".mkv", ".mov"}
@@ -65,6 +71,43 @@ def _allowed_extractors() -> list[str]:
     return ["default"] if ALLOW_GENERIC_EXTRACTOR else ["default", "-generic"]
 
 
+def _yt_dlp_runtime_options() -> dict:
+    options: dict = {}
+    node_path = shutil.which("node")
+    if node_path:
+        options["js_runtimes"] = {"node": {"path": node_path}}
+
+    if POT_PROVIDER_URL:
+        options["extractor_args"] = {
+            "youtube": {"player_client": ["mweb", "web_embedded"]},
+            "youtubepot-bgutilhttp": {"base_url": [POT_PROVIDER_URL]},
+        }
+    return options
+
+
+def _friendly_download_error(exc: DownloadError, *, downloading: bool) -> str:
+    message = str(exc).replace("’", "'").casefold()
+    if "confirm you're not a bot" in message:
+        if POT_PROVIDER_URL:
+            return (
+                "YouTube sigue rechazando temporalmente las conexiones del servidor. "
+                "No es un problema con tu enlace; prueba de nuevo más tarde o usa otro vídeo."
+            )
+        return (
+            "YouTube está bloqueando temporalmente las conexiones del servidor. "
+            "No es un problema con tu enlace; prueba de nuevo más tarde o usa otro vídeo."
+        )
+    if downloading:
+        return (
+            "No se pudo descargar el vídeo desde esa plataforma. Puede requerir autenticación, "
+            "usar DRM o haber cambiado su formato."
+        )
+    return (
+        "No se pudo abrir ese vídeo. La plataforma puede no ser compatible, exigir inicio de sesión "
+        "o haber cambiado su reproductor."
+    )
+
+
 def _pick_caption(directory: Path, language: str) -> Path | None:
     candidates = sorted(directory.glob("*.vtt"))
     if not candidates:
@@ -87,14 +130,13 @@ def _preflight(url: str) -> dict:
         "skip_download": True,
         "socket_timeout": 30,
         "allowed_extractors": _allowed_extractors(),
+        **_yt_dlp_runtime_options(),
     }
     try:
         with YoutubeDL(options) as ydl:
             info = ydl.extract_info(url, download=False)
     except DownloadError as exc:
-        raise RuntimeError(
-            "No se pudo abrir ese vídeo. La plataforma puede no ser compatible, exigir inicio de sesión o haber cambiado su reproductor."
-        ) from exc
+        raise RuntimeError(_friendly_download_error(exc, downloading=False)) from exc
 
     if not info:
         raise RuntimeError("La plataforma no devolvió información de vídeo utilizable.")
@@ -154,15 +196,14 @@ def download_media_and_captions(url: str, directory: Path, language: str) -> dic
         "allowed_extractors": _allowed_extractors(),
         "retries": 3,
         "fragment_retries": 3,
+        **_yt_dlp_runtime_options(),
     }
 
     try:
         with YoutubeDL(options) as ydl:
             info = ydl.extract_info(url, download=True)
     except DownloadError as exc:
-        raise RuntimeError(
-            "No se pudo descargar el vídeo desde esa plataforma. Puede requerir autenticación, usar DRM o haber cambiado su formato."
-        ) from exc
+        raise RuntimeError(_friendly_download_error(exc, downloading=True)) from exc
 
     media_files = sorted(
         (
