@@ -18,7 +18,7 @@ jobs:
           response="$(curl --fail --silent --show-error \
             -H 'Content-Type: application/json' \
             -X POST \
-            -d '{"url":"https://www.youtube.com/watch?v=BaW_jenozKc","language":"en","difficulty":"expert","max_items":5}' \
+            -d '{"url":"https://www.youtube.com/watch?v=jNQXAC9IVRw","language":"en","difficulty":"expert","max_items":5}' \
             https://backend-production-afa3.up.railway.app/api/lessons)"
           lesson_id="$(printf '%s' "$response" | jq -r '.id')"
           test -n "$lesson_id"
