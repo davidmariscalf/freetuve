@@ -6,6 +6,12 @@ import threading
 from functools import lru_cache
 from pathlib import Path
 
+from .config import (
+    TRANSCRIPTION_CHUNK_OVERLAP_SECONDS,
+    TRANSCRIPTION_CHUNK_SECONDS,
+    WHISPER_BEAM_SIZE,
+)
+
 
 _MODEL_LOCK = threading.Lock()
 _INFERENCE_LOCK = threading.Lock()
@@ -20,7 +26,9 @@ def normalize_language(language: str) -> str:
 
 
 def _model_settings() -> tuple[str, str, str, str]:
-    model_name = os.getenv("FREETUVE_WHISPER_MODEL", "small")
+    # base + INT8 leaves substantially more headroom than small on the 1 GB
+    # production worker while remaining multilingual.
+    model_name = os.getenv("FREETUVE_WHISPER_MODEL", "base")
     device = os.getenv("FREETUVE_WHISPER_DEVICE", "cpu")
     compute_type = os.getenv(
         "FREETUVE_WHISPER_COMPUTE_TYPE",
@@ -45,13 +53,7 @@ def _load_model(model_name: str, device: str, compute_type: str, download_root: 
 
 
 def release_transcription_model() -> None:
-    """Drop cached Whisper model memory once a lesson finishes.
-
-    FreeTuve currently runs with a 1 GB Railway memory limit. Keeping the model
-    resident between lessons leaves too little headroom for yt-dlp, FFmpeg and
-    request handling. Model files remain cached on disk, so a later lesson can
-    reload them without downloading them again.
-    """
+    """Drop cached Whisper model memory once a lesson finishes."""
     with _MODEL_LOCK:
         with _INFERENCE_LOCK:
             _load_model.cache_clear()
@@ -106,7 +108,7 @@ def _collect_transcription(model, source: Path, language: str):
     segments, info = model.transcribe(
         str(source),
         language=normalize_language(language),
-        beam_size=5,
+        beam_size=WHISPER_BEAM_SIZE,
         vad_filter=True,
         condition_on_previous_text=False,
         word_timestamps=True,
@@ -126,16 +128,22 @@ def _collect_transcription(model, source: Path, language: str):
     return cues, info, rejected
 
 
-def _normalize_audio_for_whisper(media: Path, output: Path) -> None:
+def _run_ffmpeg_audio_extract(
+    media: Path,
+    output: Path,
+    *,
+    start_seconds: float | None = None,
+    duration_seconds: float | None = None,
+    timeout: int = 300,
+) -> None:
     output.unlink(missing_ok=True)
-    command = [
-        "ffmpeg",
-        "-hide_banner",
-        "-loglevel",
-        "error",
-        "-y",
-        "-i",
-        str(media),
+    command = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y"]
+    if start_seconds is not None and start_seconds > 0:
+        command.extend(["-ss", f"{start_seconds:.3f}"])
+    command.extend(["-i", str(media)])
+    if duration_seconds is not None and duration_seconds > 0:
+        command.extend(["-t", f"{duration_seconds:.3f}"])
+    command.extend([
         "-vn",
         "-ac",
         "1",
@@ -144,18 +152,79 @@ def _normalize_audio_for_whisper(media: Path, output: Path) -> None:
         "-c:a",
         "pcm_s16le",
         str(output),
-    ]
+    ])
     try:
-        completed = subprocess.run(command, capture_output=True, text=True, timeout=300)
+        completed = subprocess.run(command, capture_output=True, text=True, timeout=timeout)
     except (OSError, subprocess.TimeoutExpired) as exc:
-        raise RuntimeError("FFmpeg no pudo normalizar el audio para la transcripción.") from exc
+        raise RuntimeError("FFmpeg no pudo preparar el audio para la transcripción.") from exc
     if completed.returncode != 0 or not output.exists() or output.stat().st_size == 0:
         output.unlink(missing_ok=True)
         detail = (completed.stderr or "FFmpeg no produjo audio utilizable").strip()[-400:]
-        raise RuntimeError(f"No se pudo normalizar el audio para transcribirlo: {detail}")
+        raise RuntimeError(f"No se pudo preparar el audio para transcribirlo: {detail}")
 
 
-def transcribe_media_to_vtt(media_path: str | Path, output_path: str | Path, language: str) -> dict:
+def _normalize_audio_for_whisper(media: Path, output: Path) -> None:
+    _run_ffmpeg_audio_extract(media, output)
+
+
+def _transcribe_chunked(
+    model,
+    media: Path,
+    output: Path,
+    language: str,
+    duration_seconds: float,
+):
+    all_cues: list[tuple[float, float, str]] = []
+    total_rejected = 0
+    first_info = None
+    chunks = 0
+    core_start = 0.0
+    overlap = float(TRANSCRIPTION_CHUNK_OVERLAP_SECONDS)
+    chunk_seconds = float(TRANSCRIPTION_CHUNK_SECONDS)
+
+    while core_start < duration_seconds:
+        core_end = min(duration_seconds, core_start + chunk_seconds)
+        extract_start = max(0.0, core_start - overlap)
+        extract_end = min(duration_seconds, core_end + overlap)
+        chunk_path = output.with_name(f"{output.stem}.chunk-{chunks:04d}.wav")
+        try:
+            _run_ffmpeg_audio_extract(
+                media,
+                chunk_path,
+                start_seconds=extract_start,
+                duration_seconds=max(0.05, extract_end - extract_start),
+                timeout=240,
+            )
+            local_cues, info, rejected = _collect_transcription(model, chunk_path, language)
+            if first_info is None:
+                first_info = info
+            total_rejected += rejected
+
+            for start, end, text in local_cues:
+                absolute_start = max(0.0, start + extract_start)
+                absolute_end = min(duration_seconds, max(absolute_start + 0.05, end + extract_start))
+                midpoint = (absolute_start + absolute_end) / 2
+                is_last = core_end >= duration_seconds
+                if midpoint < core_start:
+                    continue
+                if midpoint >= core_end and not (is_last and midpoint <= duration_seconds):
+                    continue
+                all_cues.append((absolute_start, absolute_end, text))
+        finally:
+            chunk_path.unlink(missing_ok=True)
+
+        chunks += 1
+        core_start = core_end
+
+    return all_cues, first_info, total_rejected, chunks
+
+
+def transcribe_media_to_vtt(
+    media_path: str | Path,
+    output_path: str | Path,
+    language: str,
+    duration_seconds: float | int | None = None,
+) -> dict:
     media = Path(media_path).resolve()
     output = Path(output_path).resolve()
     if not media.exists() or not media.is_file():
@@ -167,22 +236,47 @@ def transcribe_media_to_vtt(media_path: str | Path, output_path: str | Path, lan
     with _MODEL_LOCK:
         model = _load_model(model_name, device, compute_type, download_root)
 
+    try:
+        known_duration = float(duration_seconds) if duration_seconds is not None else None
+    except (TypeError, ValueError):
+        known_duration = None
+    if known_duration is not None and known_duration <= 0:
+        known_duration = None
+
     normalized_audio = output.with_suffix(".whisper.wav")
     used_normalized_audio = False
+    chunked = bool(known_duration and known_duration > TRANSCRIPTION_CHUNK_SECONDS)
+    chunks = 1
+
     with _INFERENCE_LOCK:
-        try:
-            cues, info, rejected = _collect_transcription(model, media, language)
-        except Exception:
+        if chunked:
             try:
-                _normalize_audio_for_whisper(media, normalized_audio)
-                cues, info, rejected = _collect_transcription(model, normalized_audio, language)
+                cues, info, rejected, chunks = _transcribe_chunked(
+                    model,
+                    media,
+                    output,
+                    language,
+                    known_duration,
+                )
                 used_normalized_audio = True
-            except Exception as retry_error:
+            except Exception as exc:
                 raise RuntimeError(
-                    "La transcripción local falló incluso después de normalizar el audio con FFmpeg."
-                ) from retry_error
-            finally:
-                normalized_audio.unlink(missing_ok=True)
+                    "La transcripción por fragmentos falló al preparar o procesar el audio."
+                ) from exc
+        else:
+            try:
+                cues, info, rejected = _collect_transcription(model, media, language)
+            except Exception:
+                try:
+                    _normalize_audio_for_whisper(media, normalized_audio)
+                    cues, info, rejected = _collect_transcription(model, normalized_audio, language)
+                    used_normalized_audio = True
+                except Exception as retry_error:
+                    raise RuntimeError(
+                        "La transcripción local falló incluso después de normalizar el audio con FFmpeg."
+                    ) from retry_error
+                finally:
+                    normalized_audio.unlink(missing_ok=True)
 
     if not cues:
         raise RuntimeError("La transcripción local no detectó voz utilizable con suficiente confianza.")
@@ -193,9 +287,13 @@ def transcribe_media_to_vtt(media_path: str | Path, output_path: str | Path, lan
         "caption_path": str(output),
         "caption_source": "faster-whisper",
         "model": model_name,
-        "detected_language": getattr(info, "language", None),
-        "language_probability": getattr(info, "language_probability", None),
+        "detected_language": getattr(info, "language", None) if info is not None else None,
+        "language_probability": getattr(info, "language_probability", None) if info is not None else None,
         "segment_count": len(cues),
         "rejected_segment_count": rejected,
         "audio_normalized": used_normalized_audio,
+        "chunked": chunked,
+        "transcription_chunks": chunks,
+        "chunk_seconds": TRANSCRIPTION_CHUNK_SECONDS,
+        "beam_size": WHISPER_BEAM_SIZE,
     }
