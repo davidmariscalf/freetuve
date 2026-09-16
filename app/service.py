@@ -1,6 +1,7 @@
 import threading
 from pathlib import Path
 
+from .config import MAX_PROCESSING_ATTEMPTS
 from .exercises import generate_exercises
 from .fidelity import verify_segments
 from .storage import lesson_dir, load_lesson, save_lesson
@@ -22,6 +23,18 @@ def _process_lesson_locked(lesson_id: str) -> None:
         lesson = load_lesson(lesson_id)
         if lesson.get("status") == "ready":
             return
+
+        attempts = int(lesson.get("processing_attempts") or 0) + 1
+        lesson["processing_attempts"] = attempts
+        if attempts > MAX_PROCESSING_ATTEMPTS:
+            lesson["status"] = "error"
+            lesson["error"] = (
+                "El procesamiento se detuvo porque este vídeo agotó repetidamente los recursos "
+                "disponibles. Prueba con un vídeo más corto o ligero."
+            )
+            save_lesson(lesson)
+            return
+
         lesson["status"] = "processing"
         lesson.pop("error", None)
         save_lesson(lesson)
