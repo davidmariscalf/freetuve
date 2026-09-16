@@ -1,35 +1,58 @@
 name: live-smoke
 
 on:
+  workflow_dispatch:
   push:
     paths:
       - ".github/workflows/live-smoke.yml"
 
+permissions:
+  contents: read
+
 jobs:
   live-smoke:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      API_BASE: https://backend-production-afa3.up.railway.app
     steps:
       - name: Check deployed API health
-        run: curl --fail --silent --show-error https://backend-production-afa3.up.railway.app/api/health > /dev/null
+        run: |
+          curl --fail --silent --show-error \
+            --connect-timeout 10 --max-time 30 \
+            --retry 2 --retry-delay 2 --retry-all-errors \
+            "$API_BASE/api/health" > /dev/null
       - name: Check YouTube lesson flow
         shell: bash
         run: |
           set -euo pipefail
+          lesson_id=""
+          cleanup() {
+            if [ -n "$lesson_id" ] && [ "$lesson_id" != "null" ]; then
+              curl --silent --show-error \
+                --connect-timeout 10 --max-time 30 \
+                -X DELETE "$API_BASE/api/lessons/${lesson_id}" > /dev/null || true
+            fi
+          }
+          trap cleanup EXIT
+
           response="$(curl --fail --silent --show-error \
+            --connect-timeout 10 --max-time 30 \
             -H 'Content-Type: application/json' \
             -X POST \
             -d '{"url":"https://www.youtube.com/watch?v=jNQXAC9IVRw","language":"en","difficulty":"expert","max_items":5}' \
-            https://backend-production-afa3.up.railway.app/api/lessons)"
+            "$API_BASE/api/lessons")"
           lesson_id="$(printf '%s' "$response" | jq -r '.id')"
           test -n "$lesson_id"
           test "$lesson_id" != "null"
 
           for _ in $(seq 1 36); do
-            lesson="$(curl --fail --silent --show-error "https://backend-production-afa3.up.railway.app/api/lessons/${lesson_id}")"
+            lesson="$(curl --fail --silent --show-error \
+              --connect-timeout 10 --max-time 30 \
+              "$API_BASE/api/lessons/${lesson_id}")"
             status="$(printf '%s' "$lesson" | jq -r '.status')"
             if [ "$status" = "ready" ]; then
               echo "Live YouTube lesson flow: ready"
-              curl --fail --silent --show-error -X DELETE "https://backend-production-afa3.up.railway.app/api/lessons/${lesson_id}" > /dev/null
               exit 0
             fi
             if [ "$status" = "error" ]; then
