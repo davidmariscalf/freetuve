@@ -4,10 +4,10 @@ from pathlib import Path
 from .config import MAX_PROCESSING_ATTEMPTS
 from .exercises import generate_exercises
 from .fidelity import verify_segments
+from .heavy_media import download_media_and_captions
 from .storage import lesson_dir, load_lesson, save_lesson
 from .transcription import release_transcription_model, transcribe_media_to_vtt
 from .vtt import build_segments, parse_vtt
-from .youtube import download_media_and_captions
 
 
 _PROCESSING_LOCK = threading.Lock()
@@ -62,6 +62,7 @@ def _process_lesson_locked(lesson_id: str) -> None:
             media["media_path"],
             generated_caption,
             lesson["language"],
+            duration_seconds=media.get("duration"),
         )
         asr_segments = _segments_from_vtt(transcription_result["caption_path"])
 
@@ -107,6 +108,9 @@ def _process_lesson_locked(lesson_id: str) -> None:
             "thumbnail": media["thumbnail"],
             "source_url": media["webpage_url"],
             "media_path": media["media_path"],
+            "media_kind": media.get("media_kind") or "video",
+            "media_bytes": media.get("media_bytes"),
+            "download_profile": media.get("download_profile"),
             "caption_path": transcription_result["caption_path"],
             "caption_source": "faster-whisper",
             "transcription": transcription,
