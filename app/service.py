@@ -13,6 +13,12 @@ from .vtt import build_segments, parse_vtt
 _PROCESSING_LOCK = threading.Lock()
 
 
+def _discard_sensitive_inputs(lesson: dict) -> None:
+    """Remove user/source inputs once a lesson reaches a terminal state."""
+    lesson.pop("source_url", None)
+    lesson.pop("manual_transcript", None)
+
+
 def _segments_from_vtt(path: str | Path) -> list[dict]:
     text = Path(path).read_text(encoding="utf-8", errors="replace")
     return build_segments(parse_vtt(text))
@@ -32,6 +38,7 @@ def _process_lesson_locked(lesson_id: str) -> None:
                 "El procesamiento se detuvo porque este vídeo agotó repetidamente los recursos "
                 "disponibles. Prueba con un vídeo más corto o ligero."
             )
+            _discard_sensitive_inputs(lesson)
             save_lesson(lesson)
             return
 
@@ -141,6 +148,7 @@ def _process_lesson_locked(lesson_id: str) -> None:
             "exercise_count": len(exercises),
             "exercises": exercises,
         })
+        _discard_sensitive_inputs(lesson)
         save_lesson(lesson)
     except FileNotFoundError:
         return
@@ -151,6 +159,7 @@ def _process_lesson_locked(lesson_id: str) -> None:
             return
         lesson["status"] = "error"
         lesson["error"] = str(exc)[:700]
+        _discard_sensitive_inputs(lesson)
         try:
             save_lesson(lesson)
         except FileNotFoundError:

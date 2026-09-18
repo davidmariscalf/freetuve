@@ -8,6 +8,7 @@ def test_public_lesson_hides_answers_transcripts_and_paths():
         "id": "00000000-0000-0000-0000-000000000001",
         "status": "ready",
         "platform": "Vimeo",
+        "source_url": "https://example.com/video?private_token=secret",
         "media_path": "/private/video.mp4",
         "caption_path": "/private/captions.vtt",
         "caption_source": "faster-whisper",
@@ -30,6 +31,8 @@ def test_public_lesson_hides_answers_transcripts_and_paths():
 
     public = _public_lesson(lesson)
 
+    assert "source_url" not in public
+    assert "private_token" not in str(public)
     assert "media_path" not in public
     assert "caption_path" not in public
     assert "attempts" not in public

@@ -1,10 +1,11 @@
-const SHELL_CACHE = 'freetuve-shell-v7';
+const SHELL_CACHE = 'freetuve-shell-v9';
 const OFFLINE_CACHE = 'freetuve-offline-lessons-v1';
+const OFFLINE_CLIP_PATH = /^\/api\/lessons\/[0-9a-f-]{36}\/offline\/clip-\d{3}\.m4a$/i;
 const SHELL_ASSETS = [
   '/',
   '/styles.css?v=4',
-  '/app.js?v=6',
-  '/recovery.js?v=1',
+  '/app.js?v=7',
+  '/recovery.js?v=2',
   '/manifest.webmanifest',
   '/icon.svg',
   '/icon-192.png',
@@ -62,12 +63,16 @@ async function offlineAudioResponse(request) {
 self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
   const url = new URL(event.request.url);
-  if (url.origin !== self.location.origin) return;
 
-  if (url.pathname.startsWith('/api/lessons/') && url.pathname.includes('/offline/')) {
+  // Production serves the PWA from Netlify and lesson audio from Railway.
+  // Intercept only the narrowly defined offline-clip route before the same-origin
+  // guard so a previously cached cross-origin clip remains playable offline.
+  if (OFFLINE_CLIP_PATH.test(url.pathname)) {
     event.respondWith(offlineAudioResponse(event.request));
     return;
   }
+
+  if (url.origin !== self.location.origin) return;
 
   if (event.request.mode === 'navigate') {
     event.respondWith(fetch(event.request).catch(() => caches.match('/')));

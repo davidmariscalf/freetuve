@@ -16,8 +16,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
           cache: pip
@@ -26,14 +26,25 @@ jobs:
             requirements-dev.txt
       - name: Install dependencies
         run: pip install -r requirements-dev.txt
+      - name: Verify installed dependencies
+        run: pip check
+
       - name: Compile Python
         run: python -m compileall app
       - name: Check frontend JavaScript syntax
         run: |
           node --check frontend/app.js
+          node --check frontend/recovery.js
           node --check frontend/sw.js
       - name: Validate PWA manifest
         run: python -m json.tool frontend/manifest.webmanifest > /dev/null
+      - name: Validate Netlify frontend build
+        env:
+          FREETUVE_API_BASE_URL: https://example.invalid
+        run: |
+          python scripts/netlify_build.py
+          node --check frontend/config.js
+          grep -F 'https://example.invalid' frontend/config.js
       - name: Test
         shell: bash
         run: |
@@ -57,7 +68,7 @@ jobs:
         if: always()
         run: docker rm -f freetuve-ci-run >/dev/null 2>&1 || true
       - name: Upload Netlify source
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: netlify-source
           path: |
@@ -66,7 +77,7 @@ jobs:
             scripts/netlify_build.py
       - name: Upload test log
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: pytest-log
           path: pytest.log

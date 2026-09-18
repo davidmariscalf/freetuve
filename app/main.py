@@ -44,6 +44,9 @@ from .youtube import validate_source_url
 
 _CREATE_EVENTS: dict[str, deque[float]] = defaultdict(deque)
 _RATE_LOCK = threading.Lock()
+_ATTEMPT_LOCK = threading.Lock()
+_LAST_RATE_PRUNE = 0.0
+_RATE_PRUNE_INTERVAL_SECONDS = 300.0
 _RECOVERY_TASKS: set[asyncio.Task] = set()
 
 
@@ -66,10 +69,23 @@ def _client_rate_key(request: Request) -> str:
     return peer
 
 
+def _prune_create_events(cutoff: float) -> None:
+    for key, events in list(_CREATE_EVENTS.items()):
+        while events and events[0] < cutoff:
+            events.popleft()
+        if not events:
+            _CREATE_EVENTS.pop(key, None)
+
+
 def _check_create_limit(client: str) -> None:
+    global _LAST_RATE_PRUNE
     now = time.monotonic()
     cutoff = now - 3600
     with _RATE_LOCK:
+        if now - _LAST_RATE_PRUNE >= _RATE_PRUNE_INTERVAL_SECONDS:
+            _prune_create_events(cutoff)
+            _LAST_RATE_PRUNE = now
+
         bucket = _CREATE_EVENTS[client]
         while bucket and bucket[0] < cutoff:
             bucket.popleft()
@@ -129,6 +145,18 @@ app.add_middleware(
     allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type"],
 )
+
+
+@app.middleware("http")
+async def add_privacy_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("Referrer-Policy", "no-referrer")
+    if request.url.path.startswith("/api/lessons") and "Cache-Control" not in response.headers:
+        response.headers["Cache-Control"] = "no-store"
+    return response
+
+
 ensure_data_dirs()
 
 
@@ -155,6 +183,7 @@ def _public_lesson(lesson: dict) -> dict:
     result = deepcopy(lesson)
     result.pop("media_path", None)
     result.pop("caption_path", None)
+    result.pop("source_url", None)
     result.pop("attempts", None)
     result.pop("manual_transcript", None)
     if isinstance(result.get("transcription"), dict):
@@ -289,27 +318,31 @@ def get_offline_clip(lesson_id: str, filename: str):
 
 @app.post("/api/lessons/{lesson_id}/attempts")
 def submit_attempt(lesson_id: str, payload: AttemptRequest) -> dict:
-    lesson = _load_or_404(lesson_id)
-    if lesson.get("status") != "ready":
-        raise HTTPException(status_code=409, detail="La lección todavía no está lista")
+    # The lesson JSON is a single-file state record. Keep the read/append/write
+    # sequence atomic so concurrent answer submissions cannot silently overwrite
+    # one another. The lock is held only for this small metadata mutation.
+    with _ATTEMPT_LOCK:
+        lesson = _load_or_404(lesson_id)
+        if lesson.get("status") != "ready":
+            raise HTTPException(status_code=409, detail="La lección todavía no está lista")
 
-    exercise = next((item for item in lesson.get("exercises", []) if item["id"] == payload.exercise_id), None)
-    if exercise is None:
-        raise HTTPException(status_code=404, detail="Ejercicio no encontrado")
-    if payload.listens < exercise.get("min_listens", 2):
-        raise HTTPException(status_code=400, detail="Escucha el fragmento al menos dos veces antes de responder")
+        exercise = next((item for item in lesson.get("exercises", []) if item["id"] == payload.exercise_id), None)
+        if exercise is None:
+            raise HTTPException(status_code=404, detail="Ejercicio no encontrado")
+        if payload.listens < exercise.get("min_listens", 2):
+            raise HTTPException(status_code=400, detail="Escucha el fragmento al menos dos veces antes de responder")
 
-    result = score_answer(exercise, payload.answer, payload.listens)
-    lesson.setdefault("attempts", []).append({
-        "exercise_id": payload.exercise_id,
-        "listens": payload.listens,
-        "correct": result["correct"],
-        "accuracy": result["accuracy"],
-        "score": result["score"],
-    })
-    save_lesson(lesson)
-    result["progress"] = _progress(lesson)
-    return result
+        result = score_answer(exercise, payload.answer, payload.listens)
+        lesson.setdefault("attempts", []).append({
+            "exercise_id": payload.exercise_id,
+            "listens": payload.listens,
+            "correct": result["correct"],
+            "accuracy": result["accuracy"],
+            "score": result["score"],
+        })
+        save_lesson(lesson)
+        result["progress"] = _progress(lesson)
+        return result
 
 
 frontend = Path(__file__).resolve().parent.parent / "frontend"

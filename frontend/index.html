@@ -140,26 +140,7 @@
     </footer>
   </main>
   <script src="/config.js"></script>
-  <script src="/app.js?v=6" defer></script>
-  <script src="/recovery.js?v=1" defer></script>
-  <script>
-    window.addEventListener('DOMContentLoaded', () => {
-      const video = document.querySelector('#video');
-      const link = document.querySelector('#download-video');
-      const syncDownloadLink = () => {
-        const src = video.getAttribute('src') || '';
-        const match = src.match(/^(.*\/api\/lessons\/[^/]+)\/media(?:\?.*)?$/);
-        if (!match) {
-          link.classList.add('hidden');
-          link.removeAttribute('href');
-          return;
-        }
-        link.href = `${match[1]}/download`;
-        link.classList.remove('hidden');
-      };
-      new MutationObserver(syncDownloadLink).observe(video, { attributes: true, attributeFilter: ['src'] });
-      syncDownloadLink();
-    });
-  </script>
+  <script src="/app.js?v=7" defer></script>
+  <script src="/recovery.js?v=2" defer></script>
 </body>
 </html>

@@ -1,6 +1,6 @@
 from types import SimpleNamespace
 
-from app.main import _client_rate_key
+from app.main import _CREATE_EVENTS, _client_rate_key, _prune_create_events
 
 
 def _request(headers=None, host="100.64.0.2"):
@@ -28,3 +28,17 @@ def test_public_direct_client_cannot_spoof_real_ip_header():
     request = _request({"x-real-ip": "1.2.3.4"}, host="8.8.8.8")
     assert _client_rate_key(request) == "8.8.8.8"
 
+
+
+def test_prune_create_events_removes_only_inactive_clients():
+    _CREATE_EVENTS.clear()
+    _CREATE_EVENTS["stale"].extend([100.0, 200.0])
+    _CREATE_EVENTS["mixed"].extend([100.0, 900.0])
+    _CREATE_EVENTS["fresh"].extend([950.0])
+
+    _prune_create_events(800.0)
+
+    assert "stale" not in _CREATE_EVENTS
+    assert list(_CREATE_EVENTS["mixed"]) == [900.0]
+    assert list(_CREATE_EVENTS["fresh"]) == [950.0]
+    _CREATE_EVENTS.clear()
