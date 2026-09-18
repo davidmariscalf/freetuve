@@ -26,6 +26,9 @@ jobs:
             requirements-dev.txt
       - name: Install dependencies
         run: pip install -r requirements-dev.txt
+      - name: Verify installed dependencies
+        run: pip check
+
       - name: Compile Python
         run: python -m compileall app
       - name: Check frontend JavaScript syntax
