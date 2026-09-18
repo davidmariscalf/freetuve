@@ -71,3 +71,67 @@ def verify_segments(
         verified.append(item)
 
     return verified
+
+
+def align_manual_transcript(
+    manual_transcript: str,
+    asr_segments: list[dict],
+    *,
+    minimum_similarity: float = 0.65,
+    max_ahead_tokens: int = 180,
+) -> list[dict]:
+    """Align user supplied transcript text to ASR timed segments.
+
+    Whisper remains the timing source. The manual transcript only supplies
+    wording for segments that can be matched confidently in sequence, so a
+    pasted transcript never invents timestamps or silently drifts away from
+    the audio.
+    """
+    manual_tokens = [match.group(0) for match in WORD.finditer(manual_transcript)]
+    manual_norm = [token.casefold().replace("’", "'") for token in manual_tokens]
+    if not manual_tokens or not asr_segments:
+        return []
+
+    aligned: list[dict] = []
+    cursor = 0
+
+    for segment in asr_segments:
+        target = _tokens(str(segment.get("text") or ""))
+        if len(target) < 2:
+            continue
+
+        min_size = max(2, len(target) - 2)
+        max_size = min(len(manual_tokens), len(target) + 3)
+        if min_size > max_size:
+            continue
+
+        search_start = max(0, cursor - 2)
+        search_end = min(
+            len(manual_tokens),
+            max(search_start + max_ahead_tokens, cursor + len(target) * 8),
+        )
+
+        best_score = 0.0
+        best_start = -1
+        best_end = -1
+        for start in range(search_start, search_end):
+            for size in range(min_size, max_size + 1):
+                end = start + size
+                if end > search_end:
+                    break
+                score = SequenceMatcher(None, target, manual_norm[start:end]).ratio()
+                if score > best_score:
+                    best_score = score
+                    best_start = start
+                    best_end = end
+
+        if best_score < minimum_similarity or best_start < 0:
+            continue
+
+        item = dict(segment)
+        item["text"] = " ".join(manual_tokens[best_start:best_end])
+        item["manual_similarity"] = round(best_score, 4)
+        aligned.append(item)
+        cursor = best_end
+
+    return aligned
