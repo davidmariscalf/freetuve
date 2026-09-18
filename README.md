@@ -2,7 +2,7 @@
 
 FreeTuve turns a video from a supported public platform into an interactive language listening lesson. It prefers existing subtitles, falls back to local speech to text when needed, can download the processed video to the user's device, and can save compact audio exercises for offline study.
 
-## FreeTuve 1.1
+## FreeTuve 1.3
 
 The complete learning flow is:
 
@@ -67,7 +67,7 @@ Deleting a server lesson does not remove an already saved offline copy from the 
 ```text
 FREETUVE_LESSON_TTL_HOURS=24
 FREETUVE_MAX_VIDEO_SECONDS=3600
-FREETUVE_MAX_MEDIA_MB=750
+FREETUVE_MAX_MEDIA_MB=250
 FREETUVE_CREATE_LIMIT_PER_HOUR=10
 FREETUVE_OFFLINE_AUDIO_KBPS=64
 FREETUVE_ALLOW_GENERIC_EXTRACTOR=0
@@ -77,7 +77,7 @@ FREETUVE_WHISPER_COMPUTE_TYPE=int8
 FREETUVE_MODEL_DIR=/custom/model/cache
 ```
 
-These values are configurable. The defaults mean temporary lesson files are retained for 24 hours, source videos are limited to 60 minutes and 750 MB, one client can create at most 10 lessons per hour per server process, and only known yt-dlp site extractors are enabled.
+These values are configurable. The defaults mean temporary lesson files are retained for 24 hours, source videos are limited to 60 minutes and 250 MB, one client can create at most 10 lessons per hour per server process, and only known yt-dlp site extractors are enabled.
 
 ## Run with Docker
 
@@ -134,7 +134,7 @@ tests/                  regression tests
 
 ## Privacy and storage
 
-FreeTuve does not require accounts. Server lesson directories use random UUIDs. Internal paths and correct answers are not exposed by the normal lesson endpoint. Correct answers are included only in the explicitly requested offline pack so the device can score exercises without a server connection.
+FreeTuve does not require accounts. Server lesson directories use random UUIDs. Internal paths, the original source URL and correct answers are not exposed by the normal lesson endpoint. Correct answers are included only in the explicitly requested offline pack so the device can score exercises without a server connection.
 
 Temporary lesson data is deleted after the configured TTL. The user can also delete a lesson from the server immediately. Locally saved PWA data remains on that device until the learner deletes it or clears site data.
 
