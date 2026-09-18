@@ -14,7 +14,7 @@ function pendingKey(id) {
 
 function readPendingRequest(id) {
   try {
-    const value = JSON.parse(localStorage.getItem(pendingKey(id)) || 'null');
+    const value = JSON.parse(sessionStorage.getItem(pendingKey(id)) || 'null');
     return value?.request && typeof value.request === 'object' ? value.request : null;
   } catch (_) {
     return null;
@@ -23,7 +23,7 @@ function readPendingRequest(id) {
 
 function rememberPendingRequest(id, requestBody) {
   try {
-    localStorage.setItem(pendingKey(id), JSON.stringify({
+    sessionStorage.setItem(pendingKey(id), JSON.stringify({
       request: requestBody,
       created_at: new Date().toISOString(),
     }));
@@ -33,8 +33,24 @@ function rememberPendingRequest(id, requestBody) {
 }
 
 function forgetPendingRequest(id) {
-  try { localStorage.removeItem(pendingKey(id)); } catch (_) {}
+  try { sessionStorage.removeItem(pendingKey(id)); } catch (_) {}
 }
+
+function purgeLegacyPendingRequests() {
+  // Older builds stored the original creation payload in localStorage. Remove
+  // those records so source URLs and pasted transcripts do not persist beyond
+  // the browser session after upgrading.
+  try {
+    const keys = [];
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index);
+      if (key?.startsWith(PENDING_PREFIX)) keys.push(key);
+    }
+    for (const key of keys) localStorage.removeItem(key);
+  } catch (_) {}
+}
+
+purgeLegacyPendingRequests();
 
 // Preserve HTTP status information that the original request helper intentionally
 // hides. The rest of app.js keeps using the same request API.
