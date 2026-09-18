@@ -52,7 +52,7 @@ cleanup and phrase segmentation
  interactive exercises
 ```
 
-Local transcription defaults to the multilingual `small` Whisper model on CPU using INT8. The model is downloaded on first use and cached under `data/models/`.
+Local transcription defaults to the multilingual `base` Whisper model on CPU using INT8. The model is downloaded on first use and cached under `data/models/`.
 
 ## Offline design
 
@@ -71,7 +71,7 @@ FREETUVE_MAX_MEDIA_MB=250
 FREETUVE_CREATE_LIMIT_PER_HOUR=10
 FREETUVE_OFFLINE_AUDIO_KBPS=64
 FREETUVE_ALLOW_GENERIC_EXTRACTOR=0
-FREETUVE_WHISPER_MODEL=small
+FREETUVE_WHISPER_MODEL=base
 FREETUVE_WHISPER_DEVICE=cpu
 FREETUVE_WHISPER_COMPUTE_TYPE=int8
 FREETUVE_MODEL_DIR=/custom/model/cache
