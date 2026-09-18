@@ -34,9 +34,17 @@ jobs:
       - name: Check frontend JavaScript syntax
         run: |
           node --check frontend/app.js
+          node --check frontend/recovery.js
           node --check frontend/sw.js
       - name: Validate PWA manifest
         run: python -m json.tool frontend/manifest.webmanifest > /dev/null
+      - name: Validate Netlify frontend build
+        env:
+          FREETUVE_API_BASE_URL: https://example.invalid
+        run: |
+          python scripts/netlify_build.py
+          node --check frontend/config.js
+          grep -F 'https://example.invalid' frontend/config.js
       - name: Test
         shell: bash
         run: |
