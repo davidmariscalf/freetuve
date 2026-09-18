@@ -11,6 +11,7 @@ def test_public_lesson_hides_answers_transcripts_and_paths():
         "media_path": "/private/video.mp4",
         "caption_path": "/private/captions.vtt",
         "caption_source": "faster-whisper",
+        "manual_transcript": "Private user supplied transcript text.",
         "transcription": {
             "caption_path": "/private/generated.vtt",
             "caption_source": "faster-whisper",
@@ -32,6 +33,7 @@ def test_public_lesson_hides_answers_transcripts_and_paths():
     assert "media_path" not in public
     assert "caption_path" not in public
     assert "attempts" not in public
+    assert "manual_transcript" not in public
     assert "caption_path" not in public["transcription"]
     assert "expected" not in public["exercises"][0]
     assert "transcript" not in public["exercises"][0]
