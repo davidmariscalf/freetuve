@@ -1,4 +1,4 @@
-from app.fidelity import verify_segments
+from app.fidelity import align_manual_transcript, verify_segments
 
 
 def test_rejects_material_disagreement_between_caption_and_audio_asr():
@@ -55,3 +55,27 @@ def test_does_not_verify_unaligned_segments():
     asr = [{"start": 10.0, "end": 12.0, "text": "Hello there."}]
 
     assert verify_segments(source, asr) == []
+
+
+def test_manual_transcript_supplies_wording_but_keeps_asr_timestamps():
+    manual = "I need to use the restroom real quick. Then we can continue with the lesson."
+    asr = [
+        {"start": 4.2, "end": 7.4, "text": "I need to use the rest room real quick"},
+        {"start": 7.6, "end": 10.1, "text": "Then we can continue with lesson"},
+    ]
+
+    aligned = align_manual_transcript(manual, asr)
+
+    assert len(aligned) == 2
+    assert aligned[0]["start"] == 4.2
+    assert aligned[0]["end"] == 7.4
+    assert "restroom" in aligned[0]["text"]
+    assert aligned[1]["start"] == 7.6
+    assert aligned[1]["manual_similarity"] >= 0.65
+
+
+def test_manual_transcript_rejects_unrelated_text():
+    manual = "Completely unrelated words about weather and mountains."
+    asr = [{"start": 1.0, "end": 3.0, "text": "Please open the window before class."}]
+
+    assert align_manual_transcript(manual, asr) == []
