@@ -150,6 +150,7 @@ def _public_lesson(lesson: dict) -> dict:
     result.pop("media_path", None)
     result.pop("caption_path", None)
     result.pop("attempts", None)
+    result.pop("manual_transcript", None)
     if isinstance(result.get("transcription"), dict):
         result["transcription"].pop("caption_path", None)
     result["retention_hours"] = LESSON_TTL_HOURS
@@ -215,6 +216,7 @@ def create_lesson(payload: LessonCreate, background_tasks: BackgroundTasks, requ
         language=payload.language,
         difficulty=payload.difficulty,
         max_items=payload.max_items,
+        manual_transcript=payload.manual_transcript,
     )
     background_tasks.add_task(process_lesson, lesson_id)
     return {"id": lesson_id, "status": "pending", "retention_hours": LESSON_TTL_HOURS}
