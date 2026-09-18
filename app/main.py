@@ -145,6 +145,18 @@ app.add_middleware(
     allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type"],
 )
+
+
+@app.middleware("http")
+async def add_privacy_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("Referrer-Policy", "no-referrer")
+    if request.url.path.startswith("/api/lessons") and "Cache-Control" not in response.headers:
+        response.headers["Cache-Control"] = "no-store"
+    return response
+
+
 ensure_data_dirs()
 
 
