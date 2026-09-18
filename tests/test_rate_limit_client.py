@@ -23,3 +23,8 @@ def test_invalid_real_ip_falls_back_to_socket_client():
 def test_ipv6_is_normalized():
     request = _request({"x-real-ip": "2001:db8::0001"})
     assert _client_rate_key(request) == "2001:db8::1"
+
+def test_public_direct_client_cannot_spoof_real_ip_header():
+    request = _request({"x-real-ip": "1.2.3.4"}, host="8.8.8.8")
+    assert _client_rate_key(request) == "8.8.8.8"
+
