@@ -48,7 +48,13 @@ def _mask(text: str, selected: list[int]) -> tuple[str, list[str]]:
     return result, expected
 
 
-def _distractors(target: str, corpus: list[str], rng: random.Random) -> list[str]:
+def _distractors(
+    target: str,
+    corpus: list[str],
+    rng: random.Random,
+    *,
+    option_count: int = 4,
+) -> list[str]:
     unique = []
     seen = {target.casefold()}
     for word in sorted(corpus, key=lambda w: (abs(len(w) - len(target)), w.casefold())):
@@ -59,19 +65,34 @@ def _distractors(target: str, corpus: list[str], rng: random.Random) -> list[str
         if len(unique) >= 8:
             break
     rng.shuffle(unique)
-    options = [target] + unique[:3]
+    options = [target] + unique[:max(1, option_count - 1)]
     rng.shuffle(options)
     return options
 
 
 def _kind_for(index: int, difficulty: str) -> str:
+    # Ryan Detwiler's classroom feedback: multiple choice is the most
+    # appropriate entry point for Level 1 learners, while typed gap fills make
+    # more sense from Level 2 onward. Keep the transition gradual so difficulty
+    # reflects the response format, not just the number of hidden words.
     if difficulty == "easy":
-        return "multiple_choice" if index % 2 == 0 else "cloze"
+        return "multiple_choice"
     if difficulty == "medium":
-        return "multiple_choice" if index % 3 == 0 else "cloze"
+        return "multiple_choice" if index % 4 == 0 else "cloze"
     if difficulty == "hard":
-        return "dictation" if index % 3 == 2 else "cloze"
-    return "dictation" if index % 4 != 0 else "cloze"
+        return "dictation" if index % 4 == 3 else "cloze"
+    return "cloze" if index % 4 == 0 else "dictation"
+
+
+def _cloze_blank_count(difficulty: str, candidate_count: int) -> int:
+    desired = {
+        "medium": 1,
+        "hard": 2,
+        "expert": 3,
+    }.get(difficulty, 1)
+    # Never blank so much of a short sentence that context disappears.
+    context_cap = max(1, candidate_count // 2)
+    return min(desired, context_cap, candidate_count)
 
 
 def generate_exercises(segments: list[dict], difficulty: str, max_items: int) -> list[dict]:
@@ -107,13 +128,14 @@ def generate_exercises(segments: list[dict], difficulty: str, max_items: int) ->
                 "expected": text,
             })
         else:
-            blank_count = 1
-            if kind == "cloze":
-                desired = {"easy": 1, "medium": 2, "hard": 3, "expert": 4}.get(difficulty, 2)
-                blank_count = min(desired, max(1, len(candidates) // 2), len(candidates))
+            blank_count = _cloze_blank_count(difficulty, len(candidates)) if kind == "cloze" else 1
             selected = sorted(rng.sample(candidates, blank_count))
             display, expected = _mask(text, selected)
-            choices = _distractors(expected[0], corpus, rng) if kind == "multiple_choice" else []
+            if kind == "multiple_choice":
+                option_count = 3 if difficulty == "easy" else 4
+                choices = _distractors(expected[0], corpus, rng, option_count=option_count)
+            else:
+                choices = []
             exercise.update({
                 "display": display,
                 "blank_count": blank_count,
