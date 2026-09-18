@@ -155,6 +155,7 @@ def _public_lesson(lesson: dict) -> dict:
     result = deepcopy(lesson)
     result.pop("media_path", None)
     result.pop("caption_path", None)
+    result.pop("source_url", None)
     result.pop("attempts", None)
     result.pop("manual_transcript", None)
     if isinstance(result.get("transcription"), dict):
