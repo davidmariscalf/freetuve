@@ -38,6 +38,12 @@ input, select, textarea {
 }
 input:focus, select:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(139,124,255,.12); }
 .source-hint { color: var(--muted); font-size: .82rem; line-height: 1.5; margin: 8px 0 0; }
+.transcript-option { margin-top: 16px; border: 1px solid var(--line); border-radius: 14px; background: #0f131b; }
+.transcript-option summary { padding: 13px 14px; cursor: pointer; color: var(--text); font-weight: 700; }
+.transcript-option[open] summary { border-bottom: 1px solid var(--line); }
+.transcript-option label { padding: 14px 14px 0; }
+.transcript-option .source-hint { padding: 0 14px 14px; margin-top: 8px; }
+.transcript-option textarea { min-height: 150px; }
 .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 16px 0; }
 .primary, .secondary, .ghost { border-radius: 12px; padding: 12px 16px; font-weight: 700; }
 .primary { border: 0; background: var(--accent); color: white; }
