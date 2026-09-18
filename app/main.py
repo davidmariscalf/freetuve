@@ -45,6 +45,8 @@ from .youtube import validate_source_url
 _CREATE_EVENTS: dict[str, deque[float]] = defaultdict(deque)
 _RATE_LOCK = threading.Lock()
 _ATTEMPT_LOCK = threading.Lock()
+_LAST_RATE_PRUNE = 0.0
+_RATE_PRUNE_INTERVAL_SECONDS = 300.0
 _RECOVERY_TASKS: set[asyncio.Task] = set()
 
 
@@ -67,10 +69,23 @@ def _client_rate_key(request: Request) -> str:
     return peer
 
 
+def _prune_create_events(cutoff: float) -> None:
+    for key, events in list(_CREATE_EVENTS.items()):
+        while events and events[0] < cutoff:
+            events.popleft()
+        if not events:
+            _CREATE_EVENTS.pop(key, None)
+
+
 def _check_create_limit(client: str) -> None:
+    global _LAST_RATE_PRUNE
     now = time.monotonic()
     cutoff = now - 3600
     with _RATE_LOCK:
+        if now - _LAST_RATE_PRUNE >= _RATE_PRUNE_INTERVAL_SECONDS:
+            _prune_create_events(cutoff)
+            _LAST_RATE_PRUNE = now
+
         bucket = _CREATE_EVENTS[client]
         while bucket and bucket[0] < cutoff:
             bucket.popleft()
