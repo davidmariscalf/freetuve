@@ -191,6 +191,7 @@ form.addEventListener('submit', async event => {
         language: document.querySelector('#language').value,
         difficulty: document.querySelector('#difficulty').value,
         max_items: Number(document.querySelector('#max-items').value),
+        manual_transcript: document.querySelector('#manual-transcript').value.trim() || null,
       }),
     });
     lesson = await pollLesson(created.id);
@@ -217,7 +218,11 @@ function startLesson(isOffline) {
   offlineMode = isOffline;
   resetSession();
   title.textContent = lesson.title || 'Lección';
-  lessonMode.textContent = offlineMode ? 'Lección offline' : `Lección · ${lesson.caption_source === 'faster-whisper' ? 'transcripción local' : 'subtítulos'}`;
+  const verificationMode = lesson.transcription?.verification_mode;
+  const sourceLabel = verificationMode === 'manual_plus_asr'
+    ? 'transcripción aportada + audio'
+    : (lesson.caption_source === 'faster-whisper' ? 'transcripción local' : 'subtítulos');
+  lessonMode.textContent = offlineMode ? 'Lección offline' : `Lección · ${sourceLabel}`;
   saveOfflineButton.classList.toggle('hidden', offlineMode);
   deleteServerButton.classList.toggle('hidden', offlineMode);
   video.classList.toggle('hidden', offlineMode);
