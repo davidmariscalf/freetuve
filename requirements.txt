@@ -4,4 +4,4 @@ bgutil-ytdlp-pot-provider==2.0.0
 faster-whisper @ git+https://github.com/SYSTRAN/faster-whisper.git@ed9a06cd89a93e47838f564998a6c09b655d7f43
 fastapi>=0.115,<1
 uvicorn[standard]>=0.30,<1
-pydantic>=2.8,<3
+pydantic>=2.13.5,<3
