@@ -64,3 +64,60 @@ def test_scoring_penalizes_extra_replays_and_reveals_transcript():
     assert perfect["score"] == 100
     assert perfect["transcript"] == exercise["transcript"]
     assert replayed["score"] < perfect["score"]
+
+
+def test_easy_level_is_multiple_choice_with_three_options():
+    exercises = generate_exercises(sample_segments(), "easy", 5)
+
+    assert len(exercises) == 5
+    assert all(item["type"] == "multiple_choice" for item in exercises)
+    assert all(item["blank_count"] == 1 for item in exercises)
+    assert all(len(item["choices"]) == 3 for item in exercises)
+
+
+def test_medium_introduces_single_word_gap_fill_but_keeps_some_multiple_choice():
+    exercises = generate_exercises(sample_segments(), "medium", 5)
+
+    assert [item["type"] for item in exercises] == [
+        "multiple_choice",
+        "cloze",
+        "cloze",
+        "cloze",
+        "multiple_choice",
+    ]
+    cloze = [item for item in exercises if item["type"] == "cloze"]
+    assert cloze
+    assert all(item["blank_count"] == 1 for item in cloze)
+
+
+def test_hard_uses_multi_blank_cloze_and_some_dictation():
+    exercises = generate_exercises(sample_segments(), "hard", 5)
+
+    assert [item["type"] for item in exercises] == [
+        "cloze",
+        "cloze",
+        "cloze",
+        "dictation",
+        "cloze",
+    ]
+    cloze = [item for item in exercises if item["type"] == "cloze"]
+    assert all(item["blank_count"] >= 1 for item in cloze)
+    assert any(item["blank_count"] == 2 for item in cloze)
+
+
+def test_expert_is_mostly_dictation_with_harder_cloze():
+    exercises = generate_exercises(sample_segments(), "expert", 5)
+
+    assert [item["type"] for item in exercises] == [
+        "cloze",
+        "dictation",
+        "dictation",
+        "dictation",
+        "cloze",
+    ]
+    assert sum(item["type"] == "dictation" for item in exercises) == 3
+    assert any(
+        item["blank_count"] >= 2
+        for item in exercises
+        if item["type"] == "cloze"
+    )
