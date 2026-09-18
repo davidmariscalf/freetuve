@@ -3,7 +3,7 @@ from pathlib import Path
 
 from .config import MAX_PROCESSING_ATTEMPTS
 from .exercises import generate_exercises
-from .fidelity import verify_segments
+from .fidelity import align_manual_transcript, verify_segments
 from .heavy_media import download_media_and_captions
 from .storage import lesson_dir, load_lesson, save_lesson
 from .transcription import release_transcription_model, transcribe_media_to_vtt
@@ -67,7 +67,29 @@ def _process_lesson_locked(lesson_id: str) -> None:
         asr_segments = _segments_from_vtt(transcription_result["caption_path"])
 
         verification_mode = "asr_confidence"
-        if source_segments:
+        manual_transcript = str(lesson.get("manual_transcript") or "").strip()
+        manual_segments = (
+            align_manual_transcript(manual_transcript, asr_segments)
+            if manual_transcript
+            else []
+        )
+
+        if manual_segments:
+            # A manual transcript is user supplied reference text, not a timing
+            # source. Keep Whisper timestamps and replace wording only where a
+            # confident sequential match exists. Source captions can still
+            # verify additional ASR segments that the manual text did not match.
+            segments_by_time = {
+                (round(float(item["start"]), 3), round(float(item["end"]), 3)): item
+                for item in manual_segments
+            }
+            if source_segments:
+                for item in verify_segments(source_segments, asr_segments):
+                    key = (round(float(item["start"]), 3), round(float(item["end"]), 3))
+                    segments_by_time.setdefault(key, item)
+            segments = sorted(segments_by_time.values(), key=lambda item: float(item["start"]))
+            verification_mode = "manual_plus_asr"
+        elif source_segments:
             segments = verify_segments(source_segments, asr_segments)
             verification_mode = "source_plus_asr"
         else:
@@ -97,6 +119,8 @@ def _process_lesson_locked(lesson_id: str) -> None:
             "source_segment_count": len(source_segments),
             "asr_segment_count": len(asr_segments),
             "verified_segment_count": len(segments),
+            "manual_transcript_used": bool(manual_segments),
+            "manual_segment_count": len(manual_segments),
         })
 
         lesson.update({
