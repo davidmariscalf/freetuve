@@ -13,6 +13,19 @@ class LessonCreate(BaseModel):
     # 0 means adaptive: generate as many verified exercises as the video supports,
     # capped internally to keep lessons practical.
     max_items: int = Field(default=20, ge=0, le=50)
+    manual_transcript: str | None = Field(default=None, max_length=100_000)
+
+    @field_validator("manual_transcript")
+    @classmethod
+    def validate_manual_transcript(cls, value: str | None):
+        if value is None:
+            return None
+        value = value.strip()
+        if not value:
+            return None
+        if len(value) < 10:
+            raise ValueError("La transcripción manual es demasiado corta")
+        return value
 
 
 class AttemptRequest(BaseModel):
