@@ -48,16 +48,22 @@ _RECOVERY_TASKS: set[asyncio.Task] = set()
 
 
 def _client_rate_key(request: Request) -> str:
-    # Railway's public proxy supplies X-Real-IP specifically for the original
-    # remote client. request.client can otherwise be the internal Railway proxy,
-    # which would make unrelated users share a single rate-limit bucket.
+    # Railway's public proxy supplies X-Real-IP for the original remote client.
+    # Only trust that header when the immediate socket peer is non-public; a
+    # direct public client can otherwise spoof X-Real-IP and rotate rate-limit
+    # buckets at will.
+    peer = request.client.host if request.client else "unknown"
     real_ip = request.headers.get("x-real-ip", "").strip()
     if real_ip:
         try:
-            return str(ipaddress.ip_address(real_ip))
+            peer_ip = ipaddress.ip_address(peer)
+            forwarded_ip = ipaddress.ip_address(real_ip)
         except ValueError:
             pass
-    return request.client.host if request.client else "unknown"
+        else:
+            if not peer_ip.is_global:
+                return str(forwarded_ip)
+    return peer
 
 
 def _check_create_limit(client: str) -> None:
