@@ -24,6 +24,7 @@ const savedSection = document.querySelector('#saved-section');
 const savedLessons = document.querySelector('#saved-lessons');
 const connectionState = document.querySelector('#connection-state');
 const installButton = document.querySelector('#install-app');
+const downloadVideo = document.querySelector('#download-video');
 
 const SAVED_KEY = 'freetuve.saved.v1';
 const OFFLINE_CACHE = 'freetuve-offline-lessons-v1';
@@ -232,10 +233,19 @@ function startLesson(isOffline) {
   if (!offlineMode) {
     video.src = lesson.media_url;
     offlineAudio.removeAttribute('src');
+    if (lesson.download_url) {
+      downloadVideo.href = lesson.download_url;
+      downloadVideo.classList.remove('hidden');
+    } else {
+      downloadVideo.removeAttribute('href');
+      downloadVideo.classList.add('hidden');
+    }
   } else {
     video.pause();
     video.removeAttribute('src');
     video.load();
+    downloadVideo.removeAttribute('href');
+    downloadVideo.classList.add('hidden');
   }
   workspace.classList.remove('hidden');
   loadCurrent();
