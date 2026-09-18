@@ -155,7 +155,15 @@ def cleanup_expired_lessons(ttl_hours: int) -> int:
     return removed
 
 
-def create_pending_lesson(lesson_id: str, *, source_url: str, language: str, difficulty: str, max_items: int) -> dict:
+def create_pending_lesson(
+    lesson_id: str,
+    *,
+    source_url: str,
+    language: str,
+    difficulty: str,
+    max_items: int,
+    manual_transcript: str | None = None,
+) -> dict:
     data = {
         "id": lesson_id,
         "status": "pending",
@@ -165,5 +173,7 @@ def create_pending_lesson(lesson_id: str, *, source_url: str, language: str, dif
         "max_items": max_items,
         "attempts": [],
     }
+    if manual_transcript:
+        data["manual_transcript"] = manual_transcript
     save_lesson(data)
     return data
