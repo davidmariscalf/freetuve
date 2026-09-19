@@ -1,7 +1,7 @@
 {
   "name": "FreeTuve",
   "short_name": "FreeTuve",
-  "description": "Convierte vídeos en lecciones interactivas de idiomas y estudia offline.",
+  "description": "Convierte vídeos y películas en lecciones interactivas de idiomas y estudia offline.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
