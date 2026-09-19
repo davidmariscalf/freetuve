@@ -35,8 +35,8 @@ def _process_lesson_locked(lesson_id: str) -> None:
         if attempts > MAX_PROCESSING_ATTEMPTS:
             lesson["status"] = "error"
             lesson["error"] = (
-                "El procesamiento se detuvo porque este vídeo agotó repetidamente los recursos "
-                "disponibles. Prueba con un vídeo más corto o ligero."
+                "El procesamiento se detuvo porque este contenido agotó repetidamente los recursos "
+                "disponibles. Prueba con una fuente más corta o ligera."
             )
             _discard_sensitive_inputs(lesson)
             save_lesson(lesson)
