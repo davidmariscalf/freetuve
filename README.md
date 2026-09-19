@@ -1,26 +1,27 @@
 # FreeTuve
 
-FreeTuve turns a video from a supported public platform into an interactive language listening lesson. It prefers existing subtitles, falls back to local speech to text when needed, can download the processed video to the user's device, and can save compact audio exercises for offline study.
+FreeTuve turns a video or movie from a supported public source into an interactive language listening lesson. It prefers existing subtitles, falls back to local speech to text when needed, can download the processed media to the user's device, and can save compact audio exercises for offline study.
 
-## FreeTuve 1.3
+## FreeTuve 1.4
 
 The complete learning flow is:
 
-1. Paste an HTTPS URL for an individual video on a supported platform.
-2. Choose language, difficulty and lesson length.
-3. FreeTuve validates that the URL resolves to the public Internet and rejects private, local, credential-bearing or non-standard-port URLs.
-4. `yt-dlp` selects the matching built-in extractor and rejects unsupported live, playlist or overlong sources before the main download.
-5. `yt-dlp` obtains a browser-playable copy and FFmpeg merges streams when needed.
-6. FreeTuve first tries subtitles supplied by the source platform.
-7. If captions are missing or too sparse, `faster-whisper` transcribes speech locally and FreeTuve creates its own WebVTT file.
-8. Captions are cleaned and grouped into useful short phrases.
-9. Phrases become cloze, multiple choice or dictation exercises.
-10. The learner listens at least twice before answering. Extra replays carry a small score penalty.
-11. The full phrase is revealed after the answer and mistakes return later in the same session.
-12. The processed video can be downloaded explicitly to the learner's device while its temporary server copy still exists.
-13. A lesson can also be saved offline. FreeTuve stores only the exercise audio clips plus exercise data, not the entire video.
-14. The web app is installable as a PWA and saved lessons remain available without a network connection.
-15. Temporary server copies are removed automatically after the configured retention period or immediately when the user chooses to delete them.
+1. Choose **Vídeo** or **Película**. Video remains the default mode.
+2. Paste an HTTPS URL for an individual source on a supported platform.
+3. Choose language, difficulty and lesson length.
+4. FreeTuve validates that the URL resolves to the public Internet and rejects private, local, credential-bearing or non-standard-port URLs.
+5. `yt-dlp` selects the matching built-in extractor and rejects unsupported live, playlist or overlong sources before the main download.
+6. `yt-dlp` obtains a browser-playable copy and FFmpeg merges streams when needed.
+7. FreeTuve first tries subtitles supplied by the source platform.
+8. If captions are missing or too sparse, `faster-whisper` transcribes speech locally and FreeTuve creates its own WebVTT file.
+9. Captions are cleaned and grouped into useful short phrases.
+10. Phrases become cloze, multiple choice or dictation exercises.
+11. The learner listens at least twice before answering. Extra replays carry a small score penalty.
+12. The full phrase is revealed after the answer and mistakes return later in the same session.
+13. The processed video can be downloaded explicitly to the learner's device while its temporary server copy still exists.
+14. A lesson can also be saved offline. FreeTuve stores only the exercise audio clips plus exercise data, not the entire video.
+15. The web app is installable as a PWA and saved lessons remain available without a network connection.
+16. Temporary server copies are removed automatically after the configured retention period or immediately when the user chooses to delete them.
 
 No paid AI API is required.
 
@@ -67,6 +68,7 @@ Deleting a server lesson does not remove an already saved offline copy from the 
 ```text
 FREETUVE_LESSON_TTL_HOURS=24
 FREETUVE_MAX_VIDEO_SECONDS=3600
+FREETUVE_MAX_MOVIE_SECONDS=10800
 FREETUVE_MAX_MEDIA_MB=250
 FREETUVE_CREATE_LIMIT_PER_HOUR=10
 FREETUVE_OFFLINE_AUDIO_KBPS=64
@@ -77,7 +79,7 @@ FREETUVE_WHISPER_COMPUTE_TYPE=int8
 FREETUVE_MODEL_DIR=/custom/model/cache
 ```
 
-These values are configurable. The defaults mean temporary lesson files are retained for 24 hours, source videos are limited to 60 minutes and 250 MB, one client can create at most 10 lessons per hour per server process, and only known yt-dlp site extractors are enabled.
+These values are configurable. The defaults mean temporary lesson files are retained for 24 hours, normal video lessons are limited to 60 minutes, movie-mode lessons to 180 minutes, retained media to 250 MB, one client can create at most 10 lessons per hour per server process, and only known yt-dlp site extractors are enabled. Longer movie sources still use the same bounded download profiles and can fall back to audio-only processing when a video rendition would exceed the media cap.
 
 ## Run with Docker
 
@@ -140,7 +142,7 @@ Temporary lesson data is deleted after the configured TTL. The user can also del
 
 ## Safety and usage
 
-FreeTuve is a learning tool, not a DRM or access-control bypass service. Only process or download videos when you have permission or another lawful basis to do so, and follow the terms that apply to the source platform and content.
+FreeTuve is a learning tool, not a DRM or access-control bypass service. Movie mode is a Netflix-style learning interface, not a connection to Netflix or other protected streaming services. Only process or download content when you have permission or another lawful basis to do so, and follow the terms that apply to the source platform and content.
 
 The public-server defaults accept only HTTPS public Internet URLs, reject local/private destinations, credentials, direct live streams, playlists and configured media-limit violations, and disable yt-dlp's generic extractor.
 
