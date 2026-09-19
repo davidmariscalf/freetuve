@@ -90,12 +90,13 @@ window.request = async function resilientRequest(url, options = {}) {
   return payload;
 };
 
-window.pollLesson = async function pollLessonWithRecovery(initialId) {
+window.pollLesson = async function pollLessonWithRecovery(initialId, kind = 'video') {
   const maxPollAttempts = 1200;
   const retryDelayMs = 1500;
   const maxConsecutiveTransportFailures = 40; // ~60 seconds of restart grace.
   const maxRecreations = 2;
   let currentId = initialId;
+  const noun = kind === 'movie' ? 'película' : 'vídeo';
   let consecutiveTransportFailures = 0;
   let recreations = 0;
 
@@ -150,13 +151,13 @@ window.pollLesson = async function pollLessonWithRecovery(initialId) {
 
     window.setStatus(
       data.status === 'processing'
-        ? 'Procesando vídeo, subtítulos y ejercicios…'
+        ? `Procesando ${noun}, subtítulos y ejercicios…`
         : 'Preparando la lección…',
     );
     await window.sleep(retryDelayMs);
   }
 
-  throw new Error('El procesamiento está tardando demasiado. Prueba con un vídeo más corto.');
+  throw new Error('El procesamiento está tardando demasiado. Prueba con una fuente más corta o ligera.');
 };
 
 // Keep the old helper reachable for debugging without using it in normal flow.
