@@ -519,6 +519,73 @@ speed.addEventListener('change', () => {
   offlineAudio.playbackRate = rate;
 });
 
+function normalizeSpeechLocale(value) {
+  return String(value || '').trim().replace(/_/g, '-').toLocaleLowerCase();
+}
+
+function speechVoiceScore(voice, targetLocale) {
+  const voiceLocale = normalizeSpeechLocale(voice?.lang);
+  if (voiceLocale !== targetLocale) return Number.NEGATIVE_INFINITY;
+
+  const name = String(voice?.name || '').toLocaleLowerCase();
+  let score = 1000;
+
+  // Prefer engines that explicitly advertise higher quality when the browser
+  // exposes that information in the voice name. Keep this as a soft preference:
+  // the exact requested locale is always the hard requirement.
+  if (/natural|neural|premium|enhanced/.test(name)) score += 80;
+  if (/google|microsoft|apple/.test(name)) score += 30;
+  if (voice?.default) score += 10;
+
+  // These labels commonly identify older compact/system synthesis voices.
+  // They remain usable as a last exact-locale option, but are ranked lower.
+  if (/espeak|festival|compact/.test(name)) score -= 120;
+  return score;
+}
+
+async function availableSpeechVoices() {
+  const synth = window.speechSynthesis;
+  let voices = synth.getVoices();
+  if (voices.length) return voices;
+
+  // Chrome/Android frequently exposes voices asynchronously. Previously we
+  // would continue with an empty list and the device could fall back to a voice
+  // whose accent did not match the lesson locale.
+  await new Promise(resolve => {
+    let finished = false;
+    const done = () => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+      if (typeof synth.removeEventListener === 'function') {
+        synth.removeEventListener('voiceschanged', done);
+      } else if (synth.onvoiceschanged === done) {
+        synth.onvoiceschanged = null;
+      }
+      resolve();
+    };
+    const timer = setTimeout(done, 1200);
+    if (typeof synth.addEventListener === 'function') {
+      synth.addEventListener('voiceschanged', done, { once: true });
+    } else {
+      synth.onvoiceschanged = done;
+    }
+  });
+
+  voices = synth.getVoices();
+  return voices;
+}
+
+async function bestCatalogSpeechVoice(locale) {
+  const targetLocale = normalizeSpeechLocale(locale);
+  const voices = await availableSpeechVoices();
+  const exact = voices.filter(voice => normalizeSpeechLocale(voice.lang) === targetLocale);
+  if (!exact.length) return null;
+
+  exact.sort((a, b) => speechVoiceScore(b, targetLocale) - speechVoiceScore(a, targetLocale));
+  return exact[0] || null;
+}
+
 function recordListen() {
   listens += 1;
   listenCount.textContent = `Escuchas: ${listens} · mínimo ${current.min_listens}`;
@@ -539,9 +606,12 @@ async function playCurrent() {
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = lesson.locale || ({ en: 'en-GB', es: 'es-ES', fr: 'fr-FR' })[lesson.language] || 'en-GB';
     utterance.rate = Number(speed.value);
-    const voices = window.speechSynthesis.getVoices();
-    const prefix = utterance.lang.slice(0, 2).toLocaleLowerCase();
-    const matchingVoice = voices.find(voice => voice.lang?.toLocaleLowerCase().startsWith(prefix));
+
+    // Never force the first same-language voice: en-US, en-GB, fr-CA, etc.
+    // are not interchangeable for listening practice. Prefer the best voice
+    // with the exact BCP-47 locale and otherwise let the browser honour
+    // utterance.lang instead of overriding it with the wrong accent.
+    const matchingVoice = await bestCatalogSpeechVoice(utterance.lang);
     if (matchingVoice) utterance.voice = matchingVoice;
     await new Promise((resolve, reject) => {
       utterance.onend = resolve;
