@@ -8,7 +8,7 @@
   <title>FreeTuve</title>
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/styles.css?v=5">
+  <link rel="stylesheet" href="/styles.css?v=6">
 </head>
 <body>
   <main class="shell">
@@ -28,6 +28,42 @@
       <button class="content-switch-option active" type="button" data-source-type="video" aria-pressed="true">Vídeo</button>
       <button class="content-switch-option" type="button" data-source-type="movie" aria-pressed="false">Película</button>
     </nav>
+
+    <section class="card practice-catalog-card" id="practice-catalog-section" aria-labelledby="practice-catalog-title">
+      <div class="practice-catalog-header">
+        <div>
+          <span class="eyebrow">Listo para practicar</span>
+          <h2 id="practice-catalog-title">Prácticas prehechas</h2>
+          <p>Elige idioma y nivel, pulsa una tarjeta y empieza al instante. No hay que esperar a que se procese ningún vídeo.</p>
+        </div>
+        <span id="practice-count" class="practice-count"></span>
+      </div>
+      <div class="practice-filters" aria-label="Filtros del catálogo">
+        <label>Idioma
+          <select id="practice-language">
+            <option value="all">Todos</option>
+            <option value="en">Inglés</option>
+            <option value="es">Español</option>
+            <option value="fr">Francés</option>
+          </select>
+        </label>
+        <label>Nivel
+          <select id="practice-level">
+            <option value="all">Todos</option>
+            <option value="A1">A1</option>
+            <option value="A2">A2</option>
+            <option value="B1">B1</option>
+            <option value="B2">B2</option>
+            <option value="C1">C1</option>
+            <option value="C2">C2</option>
+          </select>
+        </label>
+        <button id="practice-clear-filters" class="ghost practice-clear" type="button">Limpiar filtros</button>
+      </div>
+      <div id="practice-catalog" class="practice-catalog" aria-live="polite"></div>
+      <p id="practice-empty" class="practice-empty hidden">Todavía no hay una práctica para esa combinación.</p>
+      <p class="practice-note">Estas prácticas usan la voz del navegador y contenido creado para FreeTuve. No incluyen películas, audio ni subtítulos de Netflix.</p>
+    </section>
 
     <section class="card setup" id="setup">
       <form id="lesson-form">
@@ -162,7 +198,8 @@
     </footer>
   </main>
   <script src="/config.js"></script>
-  <script src="/app.js?v=8" defer></script>
+  <script src="/practice-catalog.js?v=1" defer></script>
+  <script src="/app.js?v=9" defer></script>
   <script src="/recovery.js?v=3" defer></script>
 </body>
 </html>

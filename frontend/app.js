@@ -33,10 +33,17 @@ const sourceHint = document.querySelector('#source-hint');
 const movieBrowser = document.querySelector('#movie-browser');
 const movieLibrary = document.querySelector('#movie-library');
 const createLessonButton = document.querySelector('#create-lesson-button');
+const practiceCatalogElement = document.querySelector('#practice-catalog');
+const practiceLanguage = document.querySelector('#practice-language');
+const practiceLevel = document.querySelector('#practice-level');
+const practiceClearFilters = document.querySelector('#practice-clear-filters');
+const practiceCount = document.querySelector('#practice-count');
+const practiceEmpty = document.querySelector('#practice-empty');
 
 const SAVED_KEY = 'freetuve.saved.v1';
 const OFFLINE_CACHE = 'freetuve-offline-lessons-v1';
 const API_BASE_URL = String(window.FREETUVE_API_BASE_URL || '').replace(/\/+$/, '');
+const PRACTICE_CATALOG = Array.isArray(window.FREETUVE_PRACTICE_CATALOG) ? window.FREETUVE_PRACTICE_CATALOG : [];
 
 function apiUrl(path) {
   if (!path || path.startsWith('http://') || path.startsWith('https://')) return path;
@@ -63,6 +70,7 @@ let retryCounts = new Map();
 let offlineMode = false;
 let installPrompt = null;
 let sourceType = 'video';
+let catalogMode = false;
 
 function setStatus(message, isError = false) {
   statusBox.textContent = message;
@@ -164,6 +172,76 @@ function renderMovieLibrary() {
     movieLibrary.append(card);
   }
 }
+
+function languageLabel(code) {
+  return ({ en: 'Inglés', es: 'Español', fr: 'Francés' })[code] || code.toUpperCase();
+}
+
+function renderPracticeCatalog() {
+  if (!practiceCatalogElement) return;
+  const language = practiceLanguage?.value || 'all';
+  const level = practiceLevel?.value || 'all';
+  const matches = PRACTICE_CATALOG.filter(item =>
+    (language === 'all' || item.language === language) &&
+    (level === 'all' || item.level === level)
+  );
+
+  practiceCatalogElement.replaceChildren();
+  if (practiceCount) practiceCount.textContent = `${matches.length} práctica${matches.length === 1 ? '' : 's'}`;
+  if (practiceEmpty) practiceEmpty.classList.toggle('hidden', matches.length !== 0);
+
+  for (const item of matches) {
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = 'practice-card';
+    card.setAttribute('aria-label', `Practicar ${item.title}, nivel ${item.level}`);
+
+    const top = document.createElement('span');
+    top.className = 'practice-card-top';
+    const levelBadge = document.createElement('strong');
+    levelBadge.className = 'practice-level-badge';
+    levelBadge.textContent = item.level;
+    const language = document.createElement('span');
+    language.textContent = languageLabel(item.language);
+    top.append(levelBadge, language);
+
+    const heading = document.createElement('strong');
+    heading.className = 'practice-card-title';
+    heading.textContent = item.title;
+
+    const description = document.createElement('span');
+    description.className = 'practice-card-description';
+    description.textContent = item.description;
+
+    const meta = document.createElement('span');
+    meta.className = 'practice-card-meta';
+    meta.textContent = `${item.category} · ${item.exercise_count || item.exercises.length} ejercicios · ${item.duration_label}`;
+
+    const action = document.createElement('span');
+    action.className = 'practice-card-action';
+    action.textContent = 'Practicar ahora →';
+
+    card.append(top, heading, description, meta, action);
+    card.addEventListener('click', () => startCatalogPractice(item));
+    practiceCatalogElement.append(card);
+  }
+}
+
+function startCatalogPractice(item) {
+  lesson = typeof structuredClone === 'function' ? structuredClone(item) : JSON.parse(JSON.stringify(item));
+  catalogMode = true;
+  setSourceType('video');
+  startLesson(true);
+  hideStatus();
+}
+
+practiceLanguage?.addEventListener('change', renderPracticeCatalog);
+practiceLevel?.addEventListener('change', renderPracticeCatalog);
+practiceClearFilters?.addEventListener('click', () => {
+  practiceLanguage.value = 'all';
+  practiceLevel.value = 'all';
+  renderPracticeCatalog();
+});
 
 function setSourceType(value) {
   sourceType = value === 'movie' ? 'movie' : 'video';
@@ -296,7 +374,8 @@ function resetSession() {
 }
 
 function startLesson(isOffline) {
-  offlineMode = isOffline;
+  catalogMode = Boolean(lesson?.catalog);
+  offlineMode = isOffline || catalogMode;
   resetSession();
   const lessonSourceType = lesson.source_type || 'video';
   title.textContent = lesson.title || (lessonSourceType === 'movie' ? 'Película' : 'Lección');
@@ -305,13 +384,17 @@ function startLesson(isOffline) {
     ? 'transcripción aportada + audio'
     : (lesson.caption_source === 'faster-whisper' ? 'transcripción local' : 'subtítulos');
   const kindLabel = lessonSourceType === 'movie' ? 'Película' : 'Vídeo';
-  lessonMode.textContent = offlineMode ? `${kindLabel} offline` : `${kindLabel} · ${sourceLabel}`;
-  saveOfflineButton.classList.toggle('hidden', offlineMode);
-  deleteServerButton.classList.toggle('hidden', offlineMode);
-  video.classList.toggle('hidden', offlineMode);
-  offlineAudio.classList.toggle('hidden', !offlineMode);
-  mediaNote.classList.toggle('hidden', !offlineMode);
-  mediaNote.textContent = offlineMode ? 'Modo offline: se guardaron solo los fragmentos de audio necesarios para esta lección.' : '';
+  lessonMode.textContent = catalogMode
+    ? `Práctica ${lesson.level} · catálogo`
+    : (offlineMode ? `${kindLabel} offline` : `${kindLabel} · ${sourceLabel}`);
+  saveOfflineButton.classList.toggle('hidden', offlineMode || catalogMode);
+  deleteServerButton.classList.toggle('hidden', offlineMode || catalogMode);
+  video.classList.toggle('hidden', offlineMode || catalogMode);
+  offlineAudio.classList.toggle('hidden', !offlineMode || catalogMode);
+  mediaNote.classList.toggle('hidden', !(offlineMode || catalogMode));
+  mediaNote.textContent = catalogMode
+    ? `Práctica prehecha · ${languageLabel(lesson.language)} · nivel ${lesson.level}. La voz se genera en tu navegador.`
+    : (offlineMode ? 'Modo offline: se guardaron solo los fragmentos de audio necesarios para esta lección.' : '');
   if (!offlineMode) {
     video.src = lesson.media_url;
     offlineAudio.removeAttribute('src');
@@ -336,6 +419,7 @@ function startLesson(isOffline) {
 
 function startSavedLesson(saved) {
   lesson = typeof structuredClone === 'function' ? structuredClone(saved) : JSON.parse(JSON.stringify(saved));
+  catalogMode = false;
   setSourceType(lesson.source_type || 'video');
   startLesson(true);
   hideStatus();
@@ -346,6 +430,7 @@ function findExercise(id) {
 }
 
 function loadCurrent() {
+  if (catalogMode && 'speechSynthesis' in window) window.speechSynthesis.cancel();
   if (queueIndex >= queue.length) {
     finishLesson();
     return;
@@ -444,6 +529,28 @@ function recordListen() {
 }
 
 async function playCurrent() {
+  if (catalogMode) {
+    if (!('speechSynthesis' in window) || typeof window.SpeechSynthesisUtterance === 'undefined') {
+      throw new Error('Tu navegador no ofrece síntesis de voz para esta práctica.');
+    }
+    const text = current.spoken_text || current.transcript || '';
+    if (!text) throw new Error('Esta práctica no tiene audio disponible.');
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = lesson.locale || ({ en: 'en-GB', es: 'es-ES', fr: 'fr-FR' })[lesson.language] || 'en-GB';
+    utterance.rate = Number(speed.value);
+    const voices = window.speechSynthesis.getVoices();
+    const prefix = utterance.lang.slice(0, 2).toLocaleLowerCase();
+    const matchingVoice = voices.find(voice => voice.lang?.toLocaleLowerCase().startsWith(prefix));
+    if (matchingVoice) utterance.voice = matchingVoice;
+    await new Promise((resolve, reject) => {
+      utterance.onend = resolve;
+      utterance.onerror = () => reject(new Error('No se pudo reproducir la voz de esta práctica.'));
+      window.speechSynthesis.speak(utterance);
+    });
+    recordListen();
+    return;
+  }
   if (offlineMode) {
     offlineAudio.pause();
     offlineAudio.src = current.clip_url;
@@ -479,8 +586,15 @@ listenButton.addEventListener('click', async () => {
   if (!current) return;
   try {
     await playCurrent();
-  } catch (_) {
-    setStatus(offlineMode ? 'No se pudo abrir este fragmento offline. Elimínalo y vuelve a guardarlo cuando tengas conexión.' : 'El navegador ha bloqueado la reproducción. Pulsa play en el vídeo y vuelve a intentarlo.', true);
+  } catch (error) {
+    setStatus(
+      catalogMode
+        ? (error.message || 'No se pudo reproducir esta práctica.')
+        : (offlineMode
+          ? 'No se pudo abrir este fragmento offline. Elimínalo y vuelve a guardarlo cuando tengas conexión.'
+          : 'El navegador ha bloqueado la reproducción. Pulsa play en el vídeo y vuelve a intentarlo.'),
+      true,
+    );
   }
 });
 
@@ -668,4 +782,5 @@ if ('serviceWorker' in navigator) {
 
 updateConnectionState();
 setSourceType('video');
+renderPracticeCatalog();
 renderSavedLessons();

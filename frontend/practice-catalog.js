@@ -1,0 +1,180 @@
+(() => {
+  'use strict';
+
+  const blank = (text, answer) => text.replace(answer, '[[blank:0]]');
+
+  function practice({ id, title, language, locale, level, description, category, first, second, dictation }) {
+    return {
+      id: `catalog-${id}`,
+      catalog: true,
+      source_type: 'video',
+      title,
+      language,
+      locale,
+      level,
+      description,
+      category,
+      duration_label: '4–6 min',
+      exercise_count: 3,
+      exercises: [
+        {
+          id: `${id}-1`,
+          type: 'multiple_choice',
+          display: blank(first.text, first.answer),
+          choices: first.choices,
+          expected: [first.answer],
+          transcript: first.text,
+          spoken_text: first.text,
+          min_listens: 2,
+        },
+        {
+          id: `${id}-2`,
+          type: 'fill_blank',
+          display: blank(second.text, second.answer),
+          expected: [second.answer],
+          transcript: second.text,
+          spoken_text: second.text,
+          min_listens: 2,
+        },
+        {
+          id: `${id}-3`,
+          type: 'dictation',
+          display: 'Escribe la frase completa que escuchas.',
+          expected: dictation,
+          transcript: dictation,
+          spoken_text: dictation,
+          min_listens: 2,
+        },
+      ],
+    };
+  }
+
+  window.FREETUVE_PRACTICE_CATALOG = [
+    practice({
+      id: 'en-a1-morning', title: 'A simple morning', language: 'en', locale: 'en-GB', level: 'A1',
+      description: 'Rutinas, horas y vocabulario cotidiano.', category: 'Vida diaria',
+      first: { text: 'I wake up at seven and make a cup of tea.', answer: 'seven', choices: ['seven', 'eleven', 'twelve', 'three'] },
+      second: { text: 'My sister walks to school every morning.', answer: 'school' },
+      dictation: 'We eat breakfast together before we leave the house.',
+    }),
+    practice({
+      id: 'en-a2-weekend', title: 'Weekend plans', language: 'en', locale: 'en-GB', level: 'A2',
+      description: 'Planes, futuro cercano y actividades de ocio.', category: 'Conversación',
+      first: { text: 'We are going to visit the market on Saturday morning.', answer: 'Saturday', choices: ['Saturday', 'Monday', 'Thursday', 'Friday'] },
+      second: { text: 'If the weather is good, we will have lunch outside.', answer: 'outside' },
+      dictation: 'I have already bought the train tickets for the afternoon.',
+    }),
+    practice({
+      id: 'en-b1-remote-work', title: 'Working from home', language: 'en', locale: 'en-GB', level: 'B1',
+      description: 'Trabajo, hábitos y opiniones con vocabulario intermedio.', category: 'Trabajo',
+      first: { text: 'Working from home can save time because there is no commute.', answer: 'commute', choices: ['commute', 'holiday', 'salary', 'meeting'] },
+      second: { text: 'I try to take a short break whenever I lose concentration.', answer: 'concentration' },
+      dictation: 'A clear routine helps me separate work time from personal time.',
+    }),
+    practice({
+      id: 'en-b2-cities', title: 'Cities for people', language: 'en', locale: 'en-GB', level: 'B2',
+      description: 'Movilidad urbana, medio ambiente y argumentos.', category: 'Sociedad',
+      first: { text: 'Reliable public transport can reduce traffic without limiting mobility.', answer: 'traffic', choices: ['traffic', 'housing', 'tourism', 'weather'] },
+      second: { text: 'Well designed neighbourhoods encourage residents to walk more often.', answer: 'residents' },
+      dictation: 'Urban planning works best when environmental goals are balanced with everyday needs.',
+    }),
+    practice({
+      id: 'en-c1-ai-education', title: 'AI and education', language: 'en', locale: 'en-GB', level: 'C1',
+      description: 'Ideas abstractas, matices y lenguaje académico.', category: 'Tecnología',
+      first: { text: 'Artificial intelligence can broaden access to feedback, provided that teachers remain in control.', answer: 'provided', choices: ['provided', 'despite', 'unless', 'whereas'] },
+      second: { text: 'The most useful systems make their limitations explicit rather than hiding uncertainty.', answer: 'uncertainty' },
+      dictation: 'Educational technology should support judgement rather than quietly replacing it.',
+    }),
+    practice({
+      id: 'en-c2-persuasion', title: 'Language and persuasion', language: 'en', locale: 'en-GB', level: 'C2',
+      description: 'Retórica, inferencias y formulaciones de alta precisión.', category: 'Lenguaje',
+      first: { text: 'A persuasive argument may sound inevitable while quietly resting on contestable assumptions.', answer: 'contestable', choices: ['contestable', 'literal', 'accidental', 'temporary'] },
+      second: { text: 'Skilled speakers can foreground one interpretation while relegating alternatives to the margins.', answer: 'relegating' },
+      dictation: 'Nuance often lies not in what a sentence states outright, but in what it invites the listener to presuppose.',
+    }),
+    practice({
+      id: 'es-a1-rutina', title: 'Mi rutina', language: 'es', locale: 'es-ES', level: 'A1',
+      description: 'Rutinas básicas, horas y acciones frecuentes.', category: 'Vida diaria',
+      first: { text: 'Me levanto a las siete y desayuno en la cocina.', answer: 'siete', choices: ['siete', 'nueve', 'once', 'dos'] },
+      second: { text: 'Después camino hasta el instituto con mi amigo.', answer: 'instituto' },
+      dictation: 'Por la tarde hago los deberes y escucho música.',
+    }),
+    practice({
+      id: 'es-a2-viaje', title: 'Un viaje en tren', language: 'es', locale: 'es-ES', level: 'A2',
+      description: 'Viajes, horarios y planes sencillos.', category: 'Viajes',
+      first: { text: 'El tren sale a las nueve y llega antes del mediodía.', answer: 'nueve', choices: ['nueve', 'cinco', 'doce', 'tres'] },
+      second: { text: 'He guardado los billetes en el bolsillo de la mochila.', answer: 'billetes' },
+      dictation: 'Cuando lleguemos, iremos andando desde la estación hasta el hotel.',
+    }),
+    practice({
+      id: 'es-b1-descanso', title: 'Trabajo y descanso', language: 'es', locale: 'es-ES', level: 'B1',
+      description: 'Hábitos, productividad y equilibrio personal.', category: 'Trabajo',
+      first: { text: 'Hacer pausas breves puede mejorar la concentración durante una tarea larga.', answer: 'concentración', choices: ['concentración', 'distancia', 'temperatura', 'velocidad'] },
+      second: { text: 'Intento terminar las tareas importantes antes de revisar los mensajes.', answer: 'importantes' },
+      dictation: 'Organizar el día con cierta flexibilidad me ayuda a trabajar sin agotarme.',
+    }),
+    practice({
+      id: 'es-b2-ciudades', title: 'Ciudades habitables', language: 'es', locale: 'es-ES', level: 'B2',
+      description: 'Urbanismo, transporte y calidad de vida.', category: 'Sociedad',
+      first: { text: 'Una red de transporte fiable reduce la dependencia del coche privado.', answer: 'dependencia', choices: ['dependencia', 'distancia', 'arquitectura', 'velocidad'] },
+      second: { text: 'Los barrios compactos facilitan que muchos servicios estén a poca distancia.', answer: 'servicios' },
+      dictation: 'Una ciudad habitable combina movilidad, vivienda asequible y espacios públicos de calidad.',
+    }),
+    practice({
+      id: 'es-c1-privacidad', title: 'Tecnología y privacidad', language: 'es', locale: 'es-ES', level: 'C1',
+      description: 'Argumentación, regulación y vocabulario abstracto.', category: 'Tecnología',
+      first: { text: 'La comodidad digital no debería implicar una renuncia automática a la privacidad.', answer: 'renuncia', choices: ['renuncia', 'respuesta', 'reunión', 'repetición'] },
+      second: { text: 'La transparencia resulta insuficiente si el usuario no puede ejercer un control efectivo.', answer: 'efectivo' },
+      dictation: 'Las reglas de protección de datos son más útiles cuando convierten principios generales en decisiones comprensibles.',
+    }),
+    practice({
+      id: 'es-c2-lenguaje', title: 'Lenguaje y sociedad', language: 'es', locale: 'es-ES', level: 'C2',
+      description: 'Matices semánticos, presuposiciones y discurso.', category: 'Lenguaje',
+      first: { text: 'Una formulación aparentemente neutral puede encuadrar el debate antes de que empiece.', answer: 'encuadrar', choices: ['encuadrar', 'traducir', 'simplificar', 'enumerar'] },
+      second: { text: 'La ironía exige reconstruir una intención que rara vez coincide con el significado literal.', answer: 'literal' },
+      dictation: 'Comprender un discurso complejo requiere atender tanto a lo dicho como a las alternativas que quedan implícitamente descartadas.',
+    }),
+    practice({
+      id: 'fr-a1-journee', title: 'Ma journée', language: 'fr', locale: 'fr-FR', level: 'A1',
+      description: 'Rutinas básicas y expresiones cotidianas en francés.', category: 'Vie quotidienne',
+      first: { text: 'Je me lève à sept heures et je prends un café.', answer: 'sept', choices: ['sept', 'deux', 'onze', 'quatre'] },
+      second: { text: 'Je vais au lycée avec mon frère.', answer: 'lycée' },
+      dictation: 'Le soir, je lis un livre avant de dormir.',
+    }),
+    practice({
+      id: 'fr-a2-lyon', title: 'Un week-end à Lyon', language: 'fr', locale: 'fr-FR', level: 'A2',
+      description: 'Planes, desplazamientos y pasado reciente.', category: 'Voyage',
+      first: { text: 'Nous allons visiter le centre-ville samedi matin.', answer: 'samedi', choices: ['samedi', 'mardi', 'jeudi', 'lundi'] },
+      second: { text: 'J ai déjà réservé une chambre près de la gare.', answer: 'gare' },
+      dictation: 'S il fait beau, nous déjeunerons sur une terrasse.',
+    }),
+    practice({
+      id: 'fr-b1-distance', title: 'Travailler à distance', language: 'fr', locale: 'fr-FR', level: 'B1',
+      description: 'Trabajo, organización y opiniones.', category: 'Travail',
+      first: { text: 'Le télétravail permet parfois de gagner du temps sur les trajets.', answer: 'trajets', choices: ['trajets', 'salaires', 'vacances', 'documents'] },
+      second: { text: 'Je fais une pause dès que je sens que mon attention diminue.', answer: 'attention' },
+      dictation: 'Une routine claire m aide à séparer le travail de la vie personnelle.',
+    }),
+    practice({
+      id: 'fr-b2-villes', title: 'Des villes durables', language: 'fr', locale: 'fr-FR', level: 'B2',
+      description: 'Movilidad, sostenibilidad y políticas urbanas.', category: 'Société',
+      first: { text: 'Des transports fiables peuvent réduire la circulation sans limiter la mobilité.', answer: 'circulation', choices: ['circulation', 'population', 'température', 'construction'] },
+      second: { text: 'Des quartiers bien conçus encouragent les habitants à marcher davantage.', answer: 'habitants' },
+      dictation: 'La transition écologique fonctionne mieux lorsque les objectifs collectifs restent compatibles avec les besoins quotidiens.',
+    }),
+    practice({
+      id: 'fr-c1-ia', title: 'Intelligence artificielle', language: 'fr', locale: 'fr-FR', level: 'C1',
+      description: 'Tecnología, educación y matices argumentativos.', category: 'Technologie',
+      first: { text: 'L intelligence artificielle peut élargir l accès au soutien, à condition que les enseignants gardent la maîtrise.', answer: 'maîtrise', choices: ['maîtrise', 'distance', 'mémoire', 'vitesse'] },
+      second: { text: 'Un système fiable doit rendre ses limites explicites au lieu de dissimuler l incertitude.', answer: 'incertitude' },
+      dictation: 'La technologie éducative devrait renforcer le jugement humain plutôt que le remplacer silencieusement.',
+    }),
+    practice({
+      id: 'fr-c2-nuances', title: 'Les nuances du langage', language: 'fr', locale: 'fr-FR', level: 'C2',
+      description: 'Implicaturas, retórica y precisión lingüística.', category: 'Langage',
+      first: { text: 'Un argument persuasif peut paraître évident tout en reposant sur des présupposés discutables.', answer: 'discutables', choices: ['discutables', 'immuables', 'accidentels', 'silencieux'] },
+      second: { text: 'Le locuteur habile met une interprétation au premier plan tout en reléguant les autres à la périphérie.', answer: 'reléguant' },
+      dictation: 'La nuance réside souvent moins dans ce qui est affirmé que dans ce que la formulation invite implicitement à tenir pour acquis.',
+    }),
+  ];
+})();
