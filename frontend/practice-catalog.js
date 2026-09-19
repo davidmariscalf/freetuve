@@ -145,15 +145,15 @@
       id: 'fr-a2-lyon', title: 'Un week-end à Lyon', language: 'fr', locale: 'fr-FR', level: 'A2',
       description: 'Planes, desplazamientos y pasado reciente.', category: 'Voyage',
       first: { text: 'Nous allons visiter le centre-ville samedi matin.', answer: 'samedi', choices: ['samedi', 'mardi', 'jeudi', 'lundi'] },
-      second: { text: 'J ai déjà réservé une chambre près de la gare.', answer: 'gare' },
-      dictation: 'S il fait beau, nous déjeunerons sur une terrasse.',
+      second: { text: 'J’ai déjà réservé une chambre près de la gare.', answer: 'gare' },
+      dictation: 'S’il fait beau, nous déjeunerons sur une terrasse.',
     }),
     practice({
       id: 'fr-b1-distance', title: 'Travailler à distance', language: 'fr', locale: 'fr-FR', level: 'B1',
       description: 'Trabajo, organización y opiniones.', category: 'Travail',
       first: { text: 'Le télétravail permet parfois de gagner du temps sur les trajets.', answer: 'trajets', choices: ['trajets', 'salaires', 'vacances', 'documents'] },
       second: { text: 'Je fais une pause dès que je sens que mon attention diminue.', answer: 'attention' },
-      dictation: 'Une routine claire m aide à séparer le travail de la vie personnelle.',
+      dictation: 'Une routine claire m’aide à séparer le travail de la vie personnelle.',
     }),
     practice({
       id: 'fr-b2-villes', title: 'Des villes durables', language: 'fr', locale: 'fr-FR', level: 'B2',
@@ -165,8 +165,8 @@
     practice({
       id: 'fr-c1-ia', title: 'Intelligence artificielle', language: 'fr', locale: 'fr-FR', level: 'C1',
       description: 'Tecnología, educación y matices argumentativos.', category: 'Technologie',
-      first: { text: 'L intelligence artificielle peut élargir l accès au soutien, à condition que les enseignants gardent la maîtrise.', answer: 'maîtrise', choices: ['maîtrise', 'distance', 'mémoire', 'vitesse'] },
-      second: { text: 'Un système fiable doit rendre ses limites explicites au lieu de dissimuler l incertitude.', answer: 'incertitude' },
+      first: { text: 'L’intelligence artificielle peut élargir l’accès au soutien, à condition que les enseignants gardent la maîtrise.', answer: 'maîtrise', choices: ['maîtrise', 'distance', 'mémoire', 'vitesse'] },
+      second: { text: 'Un système fiable doit rendre ses limites explicites au lieu de dissimuler l’incertitude.', answer: 'incertitude' },
       dictation: 'La technologie éducative devrait renforcer le jugement humain plutôt que le remplacer silencieusement.',
     }),
     practice({
