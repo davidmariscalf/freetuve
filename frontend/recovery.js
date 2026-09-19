@@ -91,7 +91,10 @@ window.request = async function resilientRequest(url, options = {}) {
 };
 
 window.pollLesson = async function pollLessonWithRecovery(initialId, kind = 'video') {
-  const maxPollAttempts = 1200;
+  // Full-length movie transcription can legitimately take far longer than a short video
+  // on the 1 GB CPU worker. Keep the existing ~30 minute ceiling for videos, but
+  // allow movie jobs up to ~4 hours before the browser gives up polling.
+  const maxPollAttempts = kind === 'movie' ? 9600 : 1200;
   const retryDelayMs = 1500;
   const maxConsecutiveTransportFailures = 40; // ~60 seconds of restart grace.
   const maxRecreations = 2;

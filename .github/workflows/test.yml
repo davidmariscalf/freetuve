@@ -34,6 +34,7 @@ jobs:
       - name: Check frontend JavaScript syntax
         run: |
           node --check frontend/app.js
+          node --check frontend/practice-catalog.js
           node --check frontend/recovery.js
           node --check frontend/sw.js
       - name: Validate PWA manifest
