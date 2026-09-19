@@ -8,15 +8,15 @@
   <title>FreeTuve</title>
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/styles.css?v=4">
+  <link rel="stylesheet" href="/styles.css?v=5">
 </head>
 <body>
   <main class="shell">
     <header class="hero">
       <div>
         <span class="eyebrow">FreeTuve</span>
-        <h1>Aprende idiomas con vídeos que sí quieres ver</h1>
-        <p>Pega un vídeo de una plataforma compatible. FreeTuve lo convierte en listening, huecos, opción múltiple y dictado, y puede guardar solo los fragmentos necesarios para estudiar sin conexión.</p>
+        <h1 id="hero-title">Aprende idiomas con vídeos que sí quieres ver</h1>
+        <p id="hero-copy">Pega un vídeo de una plataforma compatible. FreeTuve lo convierte en listening, huecos, opción múltiple y dictado, y puede guardar solo los fragmentos necesarios para estudiar sin conexión.</p>
       </div>
       <div class="hero-actions">
         <a class="coffee-link coffee-top" href="https://buymeacoffee.com/playlifeline" target="_blank" rel="noopener noreferrer">Buy me a coffee</a>
@@ -24,13 +24,35 @@
       </div>
     </header>
 
+    <nav class="content-switch" aria-label="Tipo de contenido">
+      <button class="content-switch-option active" type="button" data-source-type="video" aria-pressed="true">Vídeo</button>
+      <button class="content-switch-option" type="button" data-source-type="movie" aria-pressed="false">Película</button>
+    </nav>
+
     <section class="card setup" id="setup">
       <form id="lesson-form">
         <label>
-          Enlace del vídeo
+          <span id="source-url-label">Enlace del vídeo</span>
           <input id="url" name="url" type="url" required placeholder="https://..." autocomplete="off">
         </label>
-        <p class="source-hint">YouTube, Vimeo, TikTok, X, Instagram y muchas otras plataformas compatibles con yt-dlp. Algunos vídeos pueden exigir cuenta, cookies o no estar disponibles por DRM.</p>
+        <p id="source-hint" class="source-hint">YouTube, Vimeo, TikTok, X, Instagram y muchas otras plataformas compatibles con yt-dlp. Algunos vídeos pueden exigir cuenta, cookies o no estar disponibles por DRM.</p>
+
+        <section id="movie-browser" class="movie-browser hidden" aria-label="Modo película">
+          <div class="movie-feature">
+            <span class="eyebrow">Modo película</span>
+            <h2>Convierte una película en una sesión de listening</h2>
+            <p>Pega el enlace de una película que puedas procesar legalmente. FreeTuve admite fuentes públicas compatibles y películas de hasta 180 minutos, bajando la calidad o usando solo audio si hace falta para mantener el servidor estable.</p>
+            <span class="movie-notice">No conecta con Netflix ni elude DRM. Servicios de streaming con protección o inicio de sesión pueden no funcionar.</span>
+          </div>
+          <div class="movie-shelf-heading">
+            <div>
+              <span class="eyebrow">Tu biblioteca</span>
+              <h3>Películas guardadas</h3>
+            </div>
+            <span class="movie-shelf-copy">Continúa desde una lección offline ya creada.</span>
+          </div>
+          <div id="movie-library" class="movie-library"></div>
+        </section>
         <details class="transcript-option">
           <summary>¿Ya tienes la transcripción o la letra?</summary>
           <label>
@@ -68,7 +90,7 @@
             </select>
           </label>
         </div>
-        <button class="primary" type="submit">Crear lección</button>
+        <button id="create-lesson-button" class="primary" type="submit">Crear lección</button>
         <p class="legal">Usa únicamente vídeos que tengas permiso o derecho a descargar y procesar. FreeTuve no elude DRM ni controles de acceso. Los archivos del servidor se eliminan automáticamente.</p>
       </form>
       <div id="status" class="status hidden" role="status" aria-live="polite"></div>
@@ -140,7 +162,7 @@
     </footer>
   </main>
   <script src="/config.js"></script>
-  <script src="/app.js?v=7" defer></script>
+  <script src="/app.js?v=8" defer></script>
   <script src="/recovery.js?v=2" defer></script>
 </body>
 </html>
