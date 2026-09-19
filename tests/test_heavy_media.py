@@ -38,7 +38,7 @@ def test_heavy_source_falls_back_to_audio_without_raising_media_cap(tmp_path, mo
     monkeypatch.setattr(
         heavy_media.source,
         "_preflight",
-        lambda _url: {"id": "abc", "title": "Heavy source", "duration": 1200},
+        lambda _url, max_duration_seconds=None: {"id": "abc", "title": "Heavy source", "duration": 1200},
     )
     monkeypatch.setattr(heavy_media.source, "_is_youtube_url", lambda _url: False)
     monkeypatch.setattr(
