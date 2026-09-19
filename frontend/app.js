@@ -25,6 +25,14 @@ const savedLessons = document.querySelector('#saved-lessons');
 const connectionState = document.querySelector('#connection-state');
 const installButton = document.querySelector('#install-app');
 const downloadVideo = document.querySelector('#download-video');
+const modeButtons = [...document.querySelectorAll('[data-source-type]')];
+const heroTitle = document.querySelector('#hero-title');
+const heroCopy = document.querySelector('#hero-copy');
+const sourceUrlLabel = document.querySelector('#source-url-label');
+const sourceHint = document.querySelector('#source-hint');
+const movieBrowser = document.querySelector('#movie-browser');
+const movieLibrary = document.querySelector('#movie-library');
+const createLessonButton = document.querySelector('#create-lesson-button');
 
 const SAVED_KEY = 'freetuve.saved.v1';
 const OFFLINE_CACHE = 'freetuve-offline-lessons-v1';
@@ -54,6 +62,7 @@ let scores = [];
 let retryCounts = new Map();
 let offlineMode = false;
 let installPrompt = null;
+let sourceType = 'video';
 
 function setStatus(message, isError = false) {
   statusBox.textContent = message;
@@ -114,6 +123,72 @@ function updateConnectionState() {
   connectionState.classList.toggle('offline', !navigator.onLine);
 }
 
+function renderMovieLibrary() {
+  const saved = loadSavedMap();
+  const movies = Object.values(saved)
+    .filter(item => (item.source_type || 'video') === 'movie')
+    .sort((a, b) => (b.saved_at || '').localeCompare(a.saved_at || ''));
+  movieLibrary.replaceChildren();
+
+  if (!movies.length) {
+    const empty = document.createElement('div');
+    empty.className = 'movie-library-empty';
+    const heading = document.createElement('strong');
+    heading.textContent = 'Aún no tienes películas guardadas';
+    const copy = document.createElement('span');
+    copy.textContent = 'Crea una lección en modo película y guárdala offline para que aparezca aquí.';
+    empty.append(heading, copy);
+    movieLibrary.append(empty);
+    return;
+  }
+
+  for (const item of movies) {
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = 'movie-tile';
+    card.setAttribute('aria-label', 'Abrir ' + (item.title || 'película guardada'));
+
+    const art = document.createElement('span');
+    art.className = 'movie-tile-art';
+    art.textContent = '▶';
+
+    const copy = document.createElement('span');
+    copy.className = 'movie-tile-copy';
+    const heading = document.createElement('strong');
+    heading.textContent = item.title || 'Película guardada';
+    const meta = document.createElement('span');
+    meta.textContent = (item.exercise_count || item.exercises?.length || 0) + ' ejercicios' + (item.size_bytes ? ' · ' + formatBytes(item.size_bytes) : '');
+    copy.append(heading, meta);
+    card.append(art, copy);
+    card.addEventListener('click', () => startSavedLesson(item));
+    movieLibrary.append(card);
+  }
+}
+
+function setSourceType(value) {
+  sourceType = value === 'movie' ? 'movie' : 'video';
+  const isMovie = sourceType === 'movie';
+  for (const button of modeButtons) {
+    const active = button.dataset.sourceType === sourceType;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-pressed', String(active));
+  }
+  movieBrowser.classList.toggle('hidden', !isMovie);
+  sourceUrlLabel.textContent = isMovie ? 'Enlace de la película' : 'Enlace del vídeo';
+  sourceHint.textContent = isMovie
+    ? 'Usa una fuente pública compatible con yt-dlp. FreeTuve no puede abrir servicios con DRM, cuentas obligatorias o controles de acceso.'
+    : 'YouTube, Vimeo, TikTok, X, Instagram y muchas otras plataformas compatibles con yt-dlp. Algunos vídeos pueden exigir cuenta, cookies o no estar disponibles por DRM.';
+  createLessonButton.textContent = isMovie ? 'Crear lección con esta película' : 'Crear lección';
+  heroTitle.textContent = isMovie ? 'Aprende idiomas con películas que sí quieres ver' : 'Aprende idiomas con vídeos que sí quieres ver';
+  heroCopy.textContent = isMovie
+    ? 'Pega una película de una fuente compatible. FreeTuve la transforma en ejercicios de listening y conserva solo lo necesario para practicar.'
+    : 'Pega un vídeo de una plataforma compatible. FreeTuve lo convierte en listening, huecos, opción múltiple y dictado, y puede guardar solo los fragmentos necesarios para estudiar sin conexión.';
+  if (isMovie) renderMovieLibrary();
+}
+
+for (const button of modeButtons) {
+  button.addEventListener('click', () => setSourceType(button.dataset.sourceType));
+}
 function renderSavedLessons() {
   const saved = loadSavedMap();
   const entries = Object.values(saved).sort((a, b) => (b.saved_at || '').localeCompare(a.saved_at || ''));
@@ -126,7 +201,8 @@ function renderSavedLessons() {
     const heading = document.createElement('strong');
     heading.textContent = item.title || 'Lección guardada';
     const meta = document.createElement('span');
-    meta.textContent = `${item.exercise_count || item.exercises?.length || 0} ejercicios${item.size_bytes ? ` · ${formatBytes(item.size_bytes)}` : ''}`;
+    const contentKind = (item.source_type || 'video') === 'movie' ? 'Película' : 'Vídeo';
+    meta.textContent = `${contentKind} · ${item.exercise_count || item.exercises?.length || 0} ejercicios${item.size_bytes ? ` · ${formatBytes(item.size_bytes)}` : ''}`;
     copy.append(heading, meta);
     const actions = document.createElement('div');
     actions.className = 'saved-actions';
@@ -144,6 +220,7 @@ function renderSavedLessons() {
     row.append(copy, actions);
     savedLessons.append(row);
   }
+  renderMovieLibrary();
 }
 
 async function removeSavedLesson(id) {
@@ -163,15 +240,16 @@ async function removeSavedLesson(id) {
   }
 }
 
-async function pollLesson(id) {
+async function pollLesson(id, kind = 'video') {
   for (let attempt = 0; attempt < 1200; attempt += 1) {
     const data = await request(`/api/lessons/${id}`);
     if (data.status === 'ready') return normalizeLesson(data);
     if (data.status === 'error') throw new Error(data.error || 'No se pudo crear la lección.');
-    setStatus(data.status === 'processing' ? 'Procesando vídeo, subtítulos y ejercicios…' : 'Preparando la lección…');
+    const noun = kind === 'movie' ? 'película' : 'vídeo';
+    setStatus(data.status === 'processing' ? `Procesando ${noun}, subtítulos y ejercicios…` : 'Preparando la lección…');
     await sleep(1500);
   }
-  throw new Error('El procesamiento está tardando demasiado. Prueba con un vídeo más corto.');
+  throw new Error('El procesamiento está tardando demasiado. Prueba con una fuente más corta o ligera.');
 }
 
 form.addEventListener('submit', async event => {
@@ -181,7 +259,8 @@ form.addEventListener('submit', async event => {
     return;
   }
   workspace.classList.add('hidden');
-  setStatus('Preparando la lección…');
+  const requestedSourceType = sourceType;
+  setStatus(requestedSourceType === 'movie' ? 'Preparando la película…' : 'Preparando la lección…');
   const button = form.querySelector('button[type="submit"]');
   button.disabled = true;
   try {
@@ -191,11 +270,12 @@ form.addEventListener('submit', async event => {
         url: document.querySelector('#url').value.trim(),
         language: document.querySelector('#language').value,
         difficulty: document.querySelector('#difficulty').value,
+        source_type: requestedSourceType,
         max_items: Number(document.querySelector('#max-items').value),
         manual_transcript: document.querySelector('#manual-transcript').value.trim() || null,
       }),
     });
-    lesson = await pollLesson(created.id);
+    lesson = await pollLesson(created.id, requestedSourceType);
     startLesson(false);
     hideStatus();
   } catch (error) {
@@ -218,12 +298,14 @@ function resetSession() {
 function startLesson(isOffline) {
   offlineMode = isOffline;
   resetSession();
-  title.textContent = lesson.title || 'Lección';
+  const lessonSourceType = lesson.source_type || 'video';
+  title.textContent = lesson.title || (lessonSourceType === 'movie' ? 'Película' : 'Lección');
   const verificationMode = lesson.transcription?.verification_mode;
   const sourceLabel = verificationMode === 'manual_plus_asr'
     ? 'transcripción aportada + audio'
     : (lesson.caption_source === 'faster-whisper' ? 'transcripción local' : 'subtítulos');
-  lessonMode.textContent = offlineMode ? 'Lección offline' : `Lección · ${sourceLabel}`;
+  const kindLabel = lessonSourceType === 'movie' ? 'Película' : 'Vídeo';
+  lessonMode.textContent = offlineMode ? `${kindLabel} offline` : `${kindLabel} · ${sourceLabel}`;
   saveOfflineButton.classList.toggle('hidden', offlineMode);
   deleteServerButton.classList.toggle('hidden', offlineMode);
   video.classList.toggle('hidden', offlineMode);
@@ -254,6 +336,7 @@ function startLesson(isOffline) {
 
 function startSavedLesson(saved) {
   lesson = typeof structuredClone === 'function' ? structuredClone(saved) : JSON.parse(JSON.stringify(saved));
+  setSourceType(lesson.source_type || 'video');
   startLesson(true);
   hideStatus();
 }
@@ -584,4 +667,5 @@ if ('serviceWorker' in navigator) {
 }
 
 updateConnectionState();
+setSourceType('video');
 renderSavedLessons();
