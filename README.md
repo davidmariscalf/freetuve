@@ -149,3 +149,16 @@ The public-server defaults accept only HTTPS public Internet URLs, reject local/
 ## Upstream components
 
 The project integrates `yt-dlp`, FFmpeg and `faster-whisper` without copying their complete source trees into FreeTuve. Exact upstream references are recorded in `upstream.lock.json`; license notes are in `THIRD_PARTY.md`.
+
+
+## Prebuilt practice catalogue
+
+FreeTuve includes a zero-wait practice catalogue with CEFR filters from A1 to C2.
+The initial catalogue contains original English, Spanish, and French listening
+activities. They are graded locally and use the browser's speech synthesis, so
+users can start practising without uploading or processing a video first.
+
+The catalogue interaction model was informed by the MIT-licensed Fakeflix
+project discovered through Clone Wars. See `THIRD_PARTY_NOTICES.md` for
+attribution. No Netflix media, branding, DRM circumvention, or protected
+streaming content is included.
