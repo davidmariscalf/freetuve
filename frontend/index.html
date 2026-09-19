@@ -59,7 +59,7 @@
             Transcripción manual opcional
             <textarea id="manual-transcript" name="manual_transcript" maxlength="100000" placeholder="Pega aquí la transcripción o la letra…"></textarea>
           </label>
-          <p class="source-hint">FreeTuve la usará como referencia para corregir y alinear el texto con el audio. El vídeo sigue siendo necesario para obtener los tiempos y reproducir cada fragmento.</p>
+          <p class="source-hint">FreeTuve la usará como referencia para corregir y alinear el texto con el audio. El contenido sigue siendo necesario para obtener los tiempos y reproducir cada fragmento.</p>
         </details>
         <div class="grid-3">
           <label>Idioma
@@ -82,7 +82,7 @@
           </label>
           <label>Número de ejercicios
             <select id="max-items" name="max_items">
-              <option value="0" selected>Automático · según el vídeo</option>
+              <option value="0" selected>Automático · según el contenido</option>
               <option value="10">10</option>
               <option value="20">20</option>
               <option value="30">30</option>
@@ -91,7 +91,7 @@
           </label>
         </div>
         <button id="create-lesson-button" class="primary" type="submit">Crear lección</button>
-        <p class="legal">Usa únicamente vídeos que tengas permiso o derecho a descargar y procesar. FreeTuve no elude DRM ni controles de acceso. Los archivos del servidor se eliminan automáticamente.</p>
+        <p class="legal">Usa únicamente contenido que tengas permiso o derecho a descargar y procesar. FreeTuve no elude DRM ni controles de acceso. Los archivos del servidor se eliminan automáticamente.</p>
       </form>
       <div id="status" class="status hidden" role="status" aria-live="polite"></div>
     </section>
@@ -115,7 +115,7 @@
             <h2 id="lesson-title">Vídeo</h2>
           </div>
           <div class="lesson-actions">
-            <a id="download-video" class="secondary hidden" href="#" download>Descargar vídeo</a>
+            <a id="download-video" class="secondary hidden" href="#" download>Descargar archivo</a>
             <button id="save-offline" class="secondary" type="button">Guardar offline</button>
             <button id="delete-server" class="ghost" type="button">Borrar del servidor</button>
             <div class="speed-control">
