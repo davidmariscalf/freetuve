@@ -19,7 +19,7 @@ def test_catalog_is_loaded_before_main_app_and_is_locally_graded():
     index = (ROOT / "frontend" / "index.html").read_text(encoding="utf-8")
     app = (ROOT / "frontend" / "app.js").read_text(encoding="utf-8")
 
-    assert index.index("/practice-catalog.js?v=1") < index.index("/app.js?v=9")
+    assert index.index("/practice-catalog.js?v=1") < index.index("/app.js?v=10")
     assert "let catalogMode = false" in app
     assert "SpeechSynthesisUtterance" in app
     assert "catalogMode = Boolean(lesson?.catalog)" in app
