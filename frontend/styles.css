@@ -284,3 +284,100 @@ textarea { min-height: 110px; resize: vertical; margin-top: 10px; }
   .speed-control { width: 100%; }
   .coffee-break .coffee-link, .coffee-bottom { width: 100%; min-width: 0; }
 }
+
+
+/* Prebuilt practice catalogue.
+   Interaction model adapted for FreeTuve after reviewing the MIT-licensed
+   Fakeflix project; this implementation is native vanilla JS/CSS. */
+.practice-catalog-card { margin: 20px 0; padding: 24px; overflow: hidden; }
+.practice-catalog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 18px;
+}
+.practice-catalog-header h2 { margin: 4px 0 8px; font-size: 1.5rem; }
+.practice-catalog-header p { margin: 0; max-width: 720px; color: var(--muted); line-height: 1.55; }
+.practice-count {
+  flex: 0 0 auto;
+  border: 1px solid var(--line);
+  background: #0f131b;
+  border-radius: 999px;
+  color: var(--muted);
+  padding: 7px 11px;
+  font-size: .8rem;
+}
+.practice-filters {
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) minmax(130px, .8fr) auto;
+  gap: 12px;
+  align-items: end;
+  margin: 20px 0 16px;
+}
+.practice-clear { min-height: 45px; }
+.practice-catalog {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.practice-card {
+  min-width: 0;
+  min-height: 210px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: left;
+  padding: 16px;
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(139,124,255,.16), transparent 38%),
+    linear-gradient(155deg, #151b27, #0f131b 70%);
+  cursor: pointer;
+  transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+}
+.practice-card:hover {
+  transform: translateY(-2px);
+  border-color: #536079;
+  box-shadow: 0 15px 34px rgba(0,0,0,.2);
+}
+.practice-card:focus-visible { outline: 3px solid rgba(139,124,255,.32); outline-offset: 2px; }
+.practice-card-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--muted); font-size: .78rem; }
+.practice-level-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 38px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: rgba(139,124,255,.16);
+  border: 1px solid rgba(139,124,255,.35);
+  color: #ded9ff;
+  letter-spacing: .04em;
+}
+.practice-card-title { font-size: 1.08rem; line-height: 1.25; }
+.practice-card-description { color: #b2bbca; line-height: 1.45; font-size: .88rem; }
+.practice-card-meta { color: var(--muted); font-size: .78rem; line-height: 1.4; }
+.practice-card-action { margin-top: auto; color: #d8d3ff; font-size: .85rem; font-weight: 800; }
+.practice-empty {
+  margin: 8px 0 0;
+  padding: 18px;
+  text-align: center;
+  color: var(--muted);
+  border: 1px dashed var(--line);
+  border-radius: 14px;
+}
+.practice-note { margin: 14px 0 0; color: #7f899b; font-size: .78rem; line-height: 1.5; }
+
+@media (max-width: 860px) {
+  .practice-catalog { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 600px) {
+  .practice-catalog-card { padding: 18px; }
+  .practice-catalog-header { flex-direction: column; }
+  .practice-filters { grid-template-columns: 1fr 1fr; }
+  .practice-clear { grid-column: 1 / -1; }
+  .practice-catalog { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(230px, 82vw); grid-template-columns: none; overflow-x: auto; padding: 2px 2px 10px; scroll-snap-type: x proximity; }
+  .practice-card { scroll-snap-align: start; }
+}
