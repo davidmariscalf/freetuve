@@ -115,10 +115,16 @@ def _download_profile(
     return info, media_path
 
 
-def download_media_and_captions(url: str, directory: Path, language: str) -> dict:
+def download_media_and_captions(
+    url: str,
+    directory: Path,
+    language: str,
+    *,
+    max_duration_seconds: int | None = None,
+) -> dict:
     source.validate_source_url(url)
     directory.mkdir(parents=True, exist_ok=True)
-    preflight = source._preflight(url)
+    preflight = source._preflight(url, max_duration_seconds=max_duration_seconds)
     preferred_client = preflight.get("_freetuve_player_client")
 
     if source._is_youtube_url(url):
