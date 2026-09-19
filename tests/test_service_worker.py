@@ -10,4 +10,5 @@ def test_cross_origin_offline_clips_are_intercepted_before_origin_guard():
     assert clip_guard in source
     assert origin_guard in source
     assert source.index(clip_guard) < source.index(origin_guard)
-    assert "freetuve-shell-v11" in source
+    assert "freetuve-shell-v12" in source
+    assert "/practice-catalog.js?v=1" in source
