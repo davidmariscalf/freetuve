@@ -141,7 +141,7 @@ def _pick_caption(directory: Path, language: str) -> Path | None:
     return (preferred or candidates)[0]
 
 
-def _validate_preflight_info(info: dict | None) -> dict:
+def _validate_preflight_info(info: dict | None, max_duration_seconds: int | None = None) -> dict:
     if not info:
         raise RuntimeError("La plataforma no devolvió información de vídeo utilizable.")
     if info.get("_type") in {"playlist", "multi_video"}:
@@ -150,13 +150,18 @@ def _validate_preflight_info(info: dict | None) -> dict:
         raise RuntimeError("Los directos y estrenos en curso no son compatibles todavía.")
 
     duration = info.get("duration")
-    if duration and float(duration) > MAX_VIDEO_DURATION_SECONDS:
-        minutes = MAX_VIDEO_DURATION_SECONDS // 60
-        raise RuntimeError(f"El vídeo es demasiado largo. El máximo configurado es de {minutes} minutos.")
+    duration_limit = int(max_duration_seconds or MAX_VIDEO_DURATION_SECONDS)
+    if duration and float(duration) > duration_limit:
+        minutes = duration_limit // 60
+        raise RuntimeError(f"El contenido es demasiado largo. El máximo configurado es de {minutes} minutos.")
     return info
 
 
-def _preflight_once(url: str, player_client: str | None = None) -> dict:
+def _preflight_once(
+    url: str,
+    player_client: str | None = None,
+    max_duration_seconds: int | None = None,
+) -> dict:
     options = {
         "quiet": True,
         "no_warnings": True,
@@ -172,7 +177,7 @@ def _preflight_once(url: str, player_client: str | None = None) -> dict:
             info = ydl.extract_info(url, download=False)
     except DownloadError as exc:
         raise RuntimeError(_friendly_download_error(exc, downloading=False)) from exc
-    return _validate_preflight_info(info)
+    return _validate_preflight_info(info, max_duration_seconds=max_duration_seconds)
 
 
 def _youtube_client_candidates(preferred: str | None = None) -> tuple[str, ...]:
@@ -181,14 +186,14 @@ def _youtube_client_candidates(preferred: str | None = None) -> tuple[str, ...]:
     return (preferred, *tuple(client for client in _YOUTUBE_CLIENTS if client != preferred))
 
 
-def _preflight(url: str) -> dict:
+def _preflight(url: str, max_duration_seconds: int | None = None) -> dict:
     if not _is_youtube_url(url):
-        return _preflight_once(url)
+        return _preflight_once(url, max_duration_seconds=max_duration_seconds)
 
     errors: list[str] = []
     for client in _YOUTUBE_CLIENTS:
         try:
-            info = _preflight_once(url, client)
+            info = _preflight_once(url, client, max_duration_seconds=max_duration_seconds)
             info["_freetuve_player_client"] = client
             return info
         except RuntimeError as exc:

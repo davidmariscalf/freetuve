@@ -4,12 +4,14 @@ from pydantic import BaseModel, Field, HttpUrl, field_validator
 
 
 Difficulty = Literal["easy", "medium", "hard", "expert"]
+SourceType = Literal["video", "movie"]
 
 
 class LessonCreate(BaseModel):
     url: HttpUrl
     language: str = Field(default="en", pattern=r"^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{2,8})?$")
     difficulty: Difficulty = "medium"
+    source_type: SourceType = "video"
     # 0 means adaptive: generate as many verified exercises as the video supports,
     # capped internally to keep lessons practical.
     max_items: int = Field(default=20, ge=0, le=50)

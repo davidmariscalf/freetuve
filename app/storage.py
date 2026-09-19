@@ -162,6 +162,7 @@ def create_pending_lesson(
     language: str,
     difficulty: str,
     max_items: int,
+    source_type: str = "video",
     manual_transcript: str | None = None,
 ) -> dict:
     data = {
@@ -171,6 +172,7 @@ def create_pending_lesson(
         "language": language,
         "difficulty": difficulty,
         "max_items": max_items,
+        "source_type": source_type,
         "attempts": [],
     }
     if manual_transcript:

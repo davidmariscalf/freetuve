@@ -1,6 +1,6 @@
 import os
 
-APP_VERSION = "1.3.0"
+APP_VERSION = "1.4.0"
 
 
 def _int_env(name: str, default: int, minimum: int, maximum: int) -> int:
@@ -25,6 +25,7 @@ def _bool_env(name: str, default: bool = False) -> bool:
 # videos are handled by selecting progressively smaller renditions rather than
 # by raising this cap and risking another OOM loop.
 MAX_VIDEO_DURATION_SECONDS = _int_env("FREETUVE_MAX_VIDEO_SECONDS", 3600, 60, 14400)
+MAX_MOVIE_DURATION_SECONDS = _int_env("FREETUVE_MAX_MOVIE_SECONDS", 10800, 3600, 21600)
 MAX_MEDIA_BYTES = _int_env("FREETUVE_MAX_MEDIA_MB", 250, 50, 5000) * 1024 * 1024
 MAX_PROCESSING_ATTEMPTS = _int_env("FREETUVE_MAX_PROCESSING_ATTEMPTS", 2, 1, 5)
 TRANSCRIPTION_CHUNK_SECONDS = _int_env("FREETUVE_TRANSCRIPTION_CHUNK_SECONDS", 600, 120, 1800)

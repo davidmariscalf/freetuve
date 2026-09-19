@@ -1,7 +1,7 @@
 import threading
 from pathlib import Path
 
-from .config import MAX_PROCESSING_ATTEMPTS
+from .config import MAX_MOVIE_DURATION_SECONDS, MAX_PROCESSING_ATTEMPTS, MAX_VIDEO_DURATION_SECONDS
 from .exercises import generate_exercises
 from .fidelity import align_manual_transcript, verify_segments
 from .heavy_media import download_media_and_captions
@@ -35,8 +35,8 @@ def _process_lesson_locked(lesson_id: str) -> None:
         if attempts > MAX_PROCESSING_ATTEMPTS:
             lesson["status"] = "error"
             lesson["error"] = (
-                "El procesamiento se detuvo porque este vídeo agotó repetidamente los recursos "
-                "disponibles. Prueba con un vídeo más corto o ligero."
+                "El procesamiento se detuvo porque este contenido agotó repetidamente los recursos "
+                "disponibles. Prueba con una fuente más corta o ligera."
             )
             _discard_sensitive_inputs(lesson)
             save_lesson(lesson)
@@ -50,10 +50,15 @@ def _process_lesson_locked(lesson_id: str) -> None:
 
     try:
         directory = lesson_dir(lesson_id)
+        source_type = lesson.get("source_type") or "video"
+        max_duration_seconds = (
+            MAX_MOVIE_DURATION_SECONDS if source_type == "movie" else MAX_VIDEO_DURATION_SECONDS
+        )
         media = download_media_and_captions(
             lesson["source_url"],
             directory,
             lesson["language"],
+            max_duration_seconds=max_duration_seconds,
         )
 
         # Source captions are useful evidence, but they are not authoritative:

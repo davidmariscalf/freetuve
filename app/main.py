@@ -22,6 +22,7 @@ from .config import (
     CLEANUP_INTERVAL_SECONDS,
     CREATE_LIMIT_PER_HOUR,
     LESSON_TTL_HOURS,
+    MAX_MOVIE_DURATION_SECONDS,
     MAX_VIDEO_DURATION_SECONDS,
 )
 from .exercises import score_answer
@@ -227,6 +228,7 @@ def health() -> dict:
         "local_transcription": transcription_available(),
         "lesson_ttl_hours": LESSON_TTL_HOURS,
         "max_video_minutes": MAX_VIDEO_DURATION_SECONDS // 60,
+        "max_movie_minutes": MAX_MOVIE_DURATION_SECONDS // 60,
         "multiplatform": True,
         "generic_extractor": ALLOW_GENERIC_EXTRACTOR,
         "crash_recovery": True,
@@ -251,6 +253,7 @@ def create_lesson(payload: LessonCreate, background_tasks: BackgroundTasks, requ
         language=payload.language,
         difficulty=payload.difficulty,
         max_items=payload.max_items,
+        source_type=payload.source_type,
         manual_transcript=payload.manual_transcript,
     )
     background_tasks.add_task(process_lesson, lesson_id)

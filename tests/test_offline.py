@@ -26,6 +26,7 @@ def test_offline_pack_contains_only_public_learning_data(tmp_path, monkeypatch):
         "title": "Test lesson",
         "language": "en",
         "difficulty": "medium",
+        "source_type": "movie",
         "caption_source": "youtube",
         "media_path": str(media.resolve()),
         "caption_path": str((root / "secret.vtt").resolve()),
@@ -47,6 +48,7 @@ def test_offline_pack_contains_only_public_learning_data(tmp_path, monkeypatch):
 
     pack = offline.build_offline_pack(lesson)
     assert pack["offline_schema"] == 1
+    assert pack["source_type"] == "movie"
     assert pack["size_bytes"] == 5
     assert pack["exercises"][0]["expected"] == ["world"]
     assert pack["exercises"][0]["clip_url"].endswith("/clip-001.m4a")

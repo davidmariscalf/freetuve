@@ -78,3 +78,13 @@ def test_youtube_candidate_order_prefers_successful_preflight_client():
     assert clients[0] == "tv"
     assert len(clients) == len(set(clients))
     assert set(clients) == set(youtube._YOUTUBE_CLIENTS)
+
+
+def test_preflight_accepts_longer_movie_limit(monkeypatch):
+    FakeYDL.payload = {"is_live": False, "duration": youtube.MAX_VIDEO_DURATION_SECONDS + 60}
+    monkeypatch.setattr(youtube, "YoutubeDL", FakeYDL)
+    info = youtube._preflight_once(
+        "https://example.com/movie",
+        max_duration_seconds=youtube.MAX_VIDEO_DURATION_SECONDS + 120,
+    )
+    assert info["duration"] == youtube.MAX_VIDEO_DURATION_SECONDS + 60
