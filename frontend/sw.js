@@ -1,11 +1,11 @@
-const SHELL_CACHE = 'freetuve-shell-v13';
+const SHELL_CACHE = 'freetuve-shell-v14';
 const OFFLINE_CACHE = 'freetuve-offline-lessons-v1';
 const OFFLINE_CLIP_PATH = /^\/api\/lessons\/[0-9a-f-]{36}\/offline\/clip-\d{3}\.m4a$/i;
 const SHELL_ASSETS = [
   '/',
   '/styles.css?v=6',
   '/practice-catalog.js?v=1',
-  '/app.js?v=9',
+  '/app.js?v=10',
   '/recovery.js?v=4',
   '/manifest.webmanifest',
   '/icon.svg',
